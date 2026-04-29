@@ -1,0 +1,74 @@
+\section{Introduction}
+The rapid proliferation of the Internet of Things (IoT) has led to an increase in the deployment of small, Wi-Fi-enabled devices for various applications, ranging from smart home automation to industrial monitoring. However, this ubiquity introduces significant physical-layer security risks, such as the placement of unauthorized ``hidden'' devices—including rogue access points or illicit surveillance nodes—within private or educational spaces. Detecting and localizing these non-cooperative devices is critical for maintaining privacy and preventing data breaches \cite{ren2022lumos,ju2025hidden}.\smallskip
+
+Current localization systems primarily rely on Received Signal Strength Indicator (RSSI) due to its universal support and low computational cost \cite{zaruba2007singleap}. However, in cluttered indoor settings, RSSI is highly susceptible to extreme multipath propagation, leading to localization errors that can exceed several meters \cite{yang2013rssi2csi,wu2012csi}. Comparative outdoor LoRa IoT measurements likewise report stronger robustness for CSI-derived features than for RSSI under spatial and temporal variability \cite{ghany2020robustness}, supporting CSI--RSSI tradeoff analysis even though that campaign differs from indoor Wi-Fi clutter. To address these limitations, this study explores the fusion of RSSI and Channel State Information (CSI) to create a robust Real-Time Location System (RTLS), following established CSI-based indoor localization literature \cite{yang2013rssi2csi,wu2012csi,li2024efficient}. By utilizing low-cost ESP32 microcontrollers as passive sniffers, this research seeks to bridge the gap between high-end academic localization theory and accessible, real-world security hardware.\smallskip
+
+\subsection{Problem Background}
+On a global scale, the explosion of IoT connectivity has outpaced the development of localized security frameworks. Internationally, the difficulty of precisely localizing devices that do not ``cooperate'' with network infrastructure remains a significant barrier to digital privacy. While high-accuracy localization has been achieved in laboratory settings, most current solutions are either too expensive for mass deployment or rely on active network handshakes that hidden devices are designed to avoid.\smallskip
+
+In the urban context of Cebu City, the challenge becomes more acute. In dense, semi-structured environments such as the University of San Carlos--Talamban Campus, traditional long-range localization methods such as GPS are rendered ineffective by indoor signal attenuation and urban canyon effects \cite{sensors2022indoor3d,xie2015urbancanyon}. This forces a reliance on Wi-Fi-based indoor positioning. However, past research in this area typically requires a user to walk around the environment to ``map'' signal fingerprints---a requirement that is impractical for the stealthy detection of stationary hidden devices \cite{wu2012csi,yang2013rssi2csi}.\smallskip
+
+At the most granular level—within the individual classrooms of the USC-TC Bunzel Building—the problem reaches its technical peak. These spaces act as an ``RF Hall of Mirrors,'' characterized by extreme multipath propagation where signals reflect off concrete walls and metal furniture. In these specific micro-environments, a hidden device can easily ``mask'' its location within signal nulls. Most existing academic frameworks utilize specialized, expensive network cards (like the Intel 5300) to solve this, leaving a gap for research that utilizes ubiquitous, low-cost hardware in a static, mesh-based architecture \cite{yang2013rssi2csi,wu2012csi}. This research addresses this localization gap by leveraging the fine-grained physical layer data of Wi-Fi signals to overcome the limitations of both RSSI-only and movement-dependent systems.\smallskip
+
+\subsection{Statement of the Problem}
+Wi-Fi-based indoor localization for stationary, hidden IoT devices faces a technical trilemma of precision, deployment autonomy, and computational cost. Specifically, this research addresses the following identified problems:
+
+\begin{enumerate}
+    \item \textbf{The Reliability Crisis of RSSI in Extreme Multipath:} In cluttered indoor environments like the USC-TC Bunzel Building, signals do not follow a predictable path. Concrete walls and metal furniture create an ``RF Hall of Mirrors'' where constructive and destructive interference causes Received Signal Strength Indicator (RSSI) values to fluctuate wildly. This leads to localization errors of several meters, rendering standard trilateration ineffective for finding small, hidden devices.
+    
+    \item \textbf{The Mobility Dependency of Existing Frameworks:} A significant portion of high-accuracy indoor positioning research relies on dynamic fingerprinting or user-led site surveys. Such methods require a human operator to physically walk around a room to map signal variations. This is impractical for security applications where stealth and speed are required to localize non-cooperative, stationary hidden nodes without prior environmental mapping.
+    
+    \item \textbf{Computational Bottlenecks at the Resource-Constrained Edge:} While Channel State Information (CSI) provides the granularity needed to overcome multipath noise, its raw data throughput is high. Existing CSI-based solutions typically require high-performance network interface cards (NICs) and external processing power. There is a lack of optimized, localized frameworks that allow low-cost IoT microcontrollers like the ESP32 to capture and filter PHY-layer data in real-time without exceeding their limited RAM and processing capabilities.
+\end{enumerate}
+
+\subsection{Goals and Objectives}
+\subsubsection{Goal}
+The primary goal of this research is to develop and evaluate a hybrid RSSI-CSI localization framework capable of identifying and locating stationary, non-cooperative hidden IoT devices within cluttered indoor environments using low-cost edge hardware.
+
+\subsubsection{Specific Objectives}
+To achieve this goal, the following objectives must be met:
+\begin{enumerate}
+    \item \textbf{Characterization of Extreme Multipath:} To analyze and quantify the impact of signal shadowing and destructive interference on RSSI and CSI stability within a semi-structured classroom environment at the University of San Carlos.
+    \item \textbf{Design of an Adaptive Hybrid Filter:} To develop a mathematical fusion algorithm that dynamically weighs Received Signal Strength Indicator (RSSI) for coarse range estimation and Channel State Information (CSI) sub-carrier amplitudes for fine-grained spatial fingerprinting.
+    \item \textbf{Implementation of a Passive Sniffer Mesh:} To architect a distributed network of stationary ESP32 edge nodes that can capture and transmit Physical Layer (PHY) data to a centralized laptop gateway without requiring active device handshaking.
+    \item \textbf{Comparative Performance Evaluation:} To validate the proposed hybrid approach by benchmarking its Mean Absolute Error (MAE) and signal stability against traditional RSSI-only trilateration methods in a cluttered indoor testbed.
+\end{enumerate}
+
+\subsection{Significance of the Study}
+The success of this research offers significant practical and technical contributions across several domains:
+
+\begin{itemize}
+    \item \textbf{Cross-Sector Security and Privacy:} The ability to localize non-cooperative devices has immediate applications in \textbf{Military and Defense} for detecting rogue IoT devices, in \textbf{Corporate Business} for preventing industrial espionage, and in \textbf{Personal Privacy} for sweeping sensitive areas like hotel rooms or private residences for illicit surveillance.
+
+    \item \textbf{Health and Safety Monitoring:} Beyond simple localization, the mastery of CSI amplitude analysis serves as a foundation for \textbf{Medical and Smart-Home} applications, where fine-grained signal variations can be utilized to monitor sleeping patterns, respiratory rates, or sudden falls without the use of intrusive cameras.
+
+    \item \textbf{Educational and Institutional Infrastructure:} For institutions like the University of San Carlos, this study provides a blueprint for low-cost asset tracking within concrete-heavy structures where GPS is unavailable, ensuring the security of laboratory equipment in complex indoor layouts.
+
+    \item \textbf{Democratization of Signal Research:} This research demonstrates that high-level Physical Layer (PHY) analysis is achievable on a limited budget. By utilizing lower-end microcontrollers (ESP32) instead of specialized thousand-dollar network interface cards, this study lowers the barrier of entry for students and local startups to explore advanced signal processing and IoT security.
+\end{itemize}
+
+
+\subsection{Scope and Limitations}
+
+\subsubsection{Scope}
+This research focuses on the development, implementation, and evaluation of a localization framework for detecting non-cooperative, stationary hidden IoT devices.
+
+\begin{itemize}
+    \item \textbf{Hardware and Platform:} The system is centered on the \textbf{ESP32 microcontroller} as a passive sniffing edge node and a \textbf{laptop gateway} for centralized data aggregation, signal filtering, and coordinate calculation.\smallskip
+    \item \textbf{Localization Methodology:} The framework utilizes a \textbf{Hybrid Adaptive Fusion Algorithm} that integrates coarse RSSI-based trilateration with fine-grained CSI amplitude sub-carrier filtering to mitigate the destructive effects of indoor multipath propagation.\smallskip
+    \item \textbf{Non-Associative Signal Acquisition:} The research leverages \textbf{802.11 control and management frames} (e.g., ACK, RTS/CTS, and Probe Responses). By capturing the PHY-layer preamble of these mandatory protocol responses, the system extracts CSI and RSSI data without requiring the target device to be formally associated or authenticated with the sniffer mesh.\smallskip
+    \item \textbf{Environmental Context:} Testing is restricted to the \textbf{USC-TC Bunzel Building} classrooms. This environment is selected specifically for its high concentration of reflective surfaces (concrete and metal), which represent the most challenging conditions for indoor Wi-Fi localization.\smallskip
+    \item \textbf{Performance Metrics:} The framework is evaluated based on its \textbf{Mean Absolute Error (MAE)} in meters and its signal-processing resilience to stationary physical obstructions such as furniture, equipment, and interior walls.\smallskip
+\end{itemize}
+
+\subsubsection{Limitations}
+\begin{itemize}
+    \item \textbf{Static Target Constraints:} The study is strictly limited to \textbf{stationary target nodes}. It does not address the complex signal variations, such as Doppler shifts or fast-fading effects, associated with high-speed mobile robotics or vehicular networks.\smallskip
+    \item \textbf{Signal Dimensionality:} To maintain real-time computational efficiency on low-cost hardware, the research focuses exclusively on \textbf{CSI amplitude sub-carriers}. Complex phase-shift analysis and Angle-of-Arrival (AoA) estimations are excluded due to the lack of hardware clock synchronization on standard ESP32 modules.\smallskip
+    \item \textbf{Frequency and Protocol Limitation:} The system operates solely on the \textbf{2.4 GHz ISM band} using the 802.11n protocol. While 5 GHz and 6 GHz bands offer different propagation characteristics, they are excluded to ensure hardware homogeneity across the sniffer mesh.\smallskip
+    \item \textbf{Uncontrolled RF Interference:} The study cannot eliminate or fully account for external interference from existing university-wide Wi-Fi infrastructure (e.g., Eduroam) or transient mobile hotspots, which introduce non-deterministic noise into the experimental data.\smallskip
+    \item \textbf{Secondary IoT Features:} While critical for industrial deployment, \textbf{battery life optimization} and \textbf{end-to-end network encryption} are beyond the scope of this research, which prioritizes signal-layer localization accuracy and filtering robustness.\smallskip
+    \item \textbf{Dynamic Obstructions:} While the system accounts for static environmental clutter, the impact of \textbf{continuous human movement} (crowded rooms) during the localization process is excluded from the primary accuracy benchmarks to maintain a stable experimental baseline.\smallskip
+    \item \textbf{Identity and Intent Agnostic:} The framework is designed to localize the physical coordinates of an RF source based on signal propagation. It does not perform \textbf{packet inspection, SSID validation, or MAC-layer security analysis}; therefore, the detection of specific cyber-attack vectors, such as ``Evil Twin'' or ``Man-in-the-Middle'' scenarios, is outside the scope of this signal-analysis-focused study.\smallskip
+\end{itemize}
+

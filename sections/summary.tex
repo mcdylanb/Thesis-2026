@@ -1,0 +1,19 @@
+\section*{IV. SUMMARY AND HYPOTHESIS}
+
+\subsection*{Summary}
+
+This study presents a low-cost indoor localization framework for identifying stationary, non-cooperative hidden IoT devices in cluttered indoor environments. The project addresses the limitations of conventional RSSI-based localization in spaces affected by severe multipath propagation, signal shadowing, and unstable indoor measurements. In response to this problem, the system is designed to use both Received Signal Strength Indicator (RSSI) and Channel State Information (CSI) in order to improve localization reliability and reduce error under realistic classroom conditions.
+
+The proposed framework is implemented through a distributed architecture composed of ESP32 edge nodes that act as passive sniffers and a centralized laptop gateway that performs aggregation, preprocessing, synchronization, and localization estimation. At the system level, packet observations are passively captured from the hidden target device, validated, grouped into synchronized capture windows, and processed for localization. The literature-grounded baseline system applies direct fused localization by smoothing RSSI, normalizing CSI, and estimating position in a single-stage pipeline. In contrast, the proposed system adopts a coarse-to-fine hybrid strategy in which RSSI is first used for coarse zone estimation, after which CSI is applied only within the reduced candidate region for fine refinement. When CSI observations are insufficient or unstable, the proposed system retains functionality through an RSSI-based fallback estimate.
+
+The study is structured as a comparative evaluation between the baseline and proposed systems under identical deployment conditions, anchor placements, target positions, and observation windows. Performance is assessed using measurable indicators such as Mean Absolute Error (MAE), Root Mean Square Error (RMSE), latency, estimate stability, availability, and robustness under disturbed conditions. Through this design, the project aims to determine whether a hybrid RSSI--CSI localization framework on commodity hardware can provide more accurate, stable, and operationally practical hidden-device localization than a direct fused baseline in cluttered indoor environments.
+
+\subsection*{Hypothesis}
+
+The study hypothesizes that the proposed coarse-to-fine hybrid RSSI--CSI localization framework will achieve significantly better localization performance than the literature-grounded baseline direct RSSI+CSI system for stationary hidden IoT devices in cluttered indoor environments, as measured by lower localization error, improved estimate stability, and better robustness under imperfect sensing conditions.
+
+\noindent\textbf{Null Hypothesis (H0).} There is no significant difference between the proposed coarse-to-fine hybrid RSSI--CSI localization framework and the literature-grounded baseline direct RSSI+CSI system in terms of localization accuracy, stability, latency, or robustness for stationary hidden IoT devices in cluttered indoor environments.
+
+\noindent\textbf{Alternative Hypothesis (H1).} The proposed coarse-to-fine hybrid RSSI--CSI localization framework provides significantly better localization performance than the literature-grounded baseline direct RSSI+CSI system, as evidenced by lower Mean Absolute Error (MAE) and Root Mean Square Error (RMSE), more stable estimates, and improved robustness under realistic indoor disturbances.
+
+\nocite{ren2022lumos,ju2025hidden,ghany2020robustness,li2024efficient,yang2021survey,yang2013rssi2csi,wu2012csi,zaruba2007singleap,sensors2022indoor3d,xie2015urbancanyon,leitch2023indoor,suroso2023csi,mottakin2024swiloc,reyes2025temporal,he2021motioncompass}

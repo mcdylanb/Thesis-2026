@@ -2,7 +2,7 @@
 
 This chapter presents the methodology of the study. Based on Chapters 1 and 2, the present research is designed as a \textit{comparative analysis} between a \textbf{baseline} RSSI+CSI localization system reconstructed from related literature and a \textbf{proposed} hybrid localization system developed for this study. The comparison is necessary because the problem established in Chapter 1 is not simply whether hidden IoT devices can be localized, but whether a low-cost passive system can localize \textit{stationary, non-cooperative} devices in cluttered indoor environments more effectively than a conventional signal-fusion approach.
 
-From Chapter 1, three methodological needs are clear. First, RSSI alone is unreliable in severe indoor multipath. Second, many accurate localization systems depend on motion, active cooperation, or expensive sensing hardware, making them unsuitable for hidden stationary devices. Third, CSI-based localization is promising but computationally heavier and less straightforward to deploy on commodity edge platforms. Chapter 2 refines this into a specific research gap: prior work validates RSSI, CSI, hidden-device localization, and low-cost ESP32 systems separately, but the literature does not fully integrate passive hidden-device targeting, low-cost deployment, and explicit role separation between coarse and fine localization in a single system \cite{yang2013rssi2csi,li2024efficient,mottakin2024swiloc,reyes2025temporal,ren2022lumos,ju2025hidden}. Accordingly, this chapter develops a methodology that compares a literature-grounded baseline against a proposed system intended to address that gap.
+From Chapter 1, three methodological needs are clear. First, RSSI alone is unreliable in severe indoor multipath. Second, many accurate localization systems depend on motion, active cooperation, or expensive sensing hardware, making them unsuitable for hidden stationary devices. Third, CSI-based localization is promising but computationally heavier and less straightforward to deploy on commodity edge platforms. Chapter 2 refines this into a specific research gap: prior work validates RSSI, CSI, hidden-device localization, and low-cost ESP32 systems separately, but the literature does not fully integrate passive hidden-device targeting, low-cost deployment, and explicit role separation between coarse and fine localization in a single system \cite{yang2013rssi2csi,li2024efficient,mottakin2024swiloc,reyes2025temporal,ju2025hidden}. Accordingly, this chapter develops a methodology that compares a literature-grounded baseline against a proposed system intended to address that gap.
 
 \subsection{Conceptual Framework}
 
@@ -11,6 +11,8 @@ The study uses an Input--Process--Output (IPO) framework to represent both syste
 \subsubsection{Baseline System IPO}
 
 The baseline system is based on the signal-fusion direction described in the related literature, particularly the RSSI--CSI localization perspective discussed by Yang et al.\ (2013) and the CSI feature-fusion approach reported by Li et al.\ (2024) \cite{yang2013rssi2csi,li2024efficient}. Since the exact algorithmic steps are not fully enumerated in Chapter 2, the baseline is reconstructed as a realistic and literature-consistent RSSI+CSI localization pipeline in which both signal types are collected, preprocessed, fused, and used directly for position estimation. The conceptual structure of the baseline system is shown in Fig.~\ref{fig:baseline-ipo}.
+
+The baseline IPO is therefore different from the proposed IPO at the process level rather than at the input level. Both systems receive passive RSSI and CSI observations from the same ESP32 anchors, but the baseline treats the fused feature set as one direct input to a final position estimator. The proposed system separates the functional role of each signal type by using RSSI to constrain the candidate area before CSI is applied for final refinement. This distinction is necessary because the related studies establish the usefulness of RSSI, CSI, and feature fusion, but they do not enumerate an implementation sequence identical to the present experimental setup.
 
 \begin{figure}[htbp]
 \centering
@@ -35,6 +37,8 @@ The proposed system uses the same general input sources but modifies the process
 \subsubsection{Algorithm Flow}
 
 The baseline system is reconstructed from Chapter 2 studies that use RSSI and CSI as localization evidence. In particular, Yang et al.\ (2013) discuss RSSI and CSI as alternative and comparable wireless features for indoor positioning, while Li et al.\ (2024) show that CSI feature fusion improves localization robustness under imperfect conditions \cite{yang2013rssi2csi,li2024efficient}. Based on these studies, the baseline for the present work is defined as a \textit{direct RSSI+CSI localization pipeline} in which both RSSI and CSI are collected and fused before one final localization stage. 
+
+Algorithm 1 is not presented as a verbatim reproduction of the algorithms used by Yang et al.\ (2013) or Li et al.\ (2024). Rather, it is a reconstructed baseline that operationalizes the signal-fusion logic supported by those studies within the hardware, gateway, and capture-window constraints of this research. Its validity is limited to representing a literature-consistent direct RSSI+CSI comparison model, not to claiming procedural identity with the cited works.
 
 In the baseline system, multiple ESP32 anchors are deployed around the test area and passively observe packets emitted by the hidden target device. Each anchor records packet timestamp, anchor identifier, RSSI value, and CSI amplitude information. These observations are sent to the Laptop (Centralized Gateway), where invalid or incomplete records are discarded. 
 
@@ -132,7 +136,7 @@ Algorithm 2 outlines the proposed hybrid workflow, demonstrating the logic fallb
 
 \subsubsection{Algorithm Visualization and Role Separation}
 
-Figure~\ref{fig:proposed-flow} presents the visual flowchart for the coarse-to-fine hybrid workflow. A critical deficiency in existing ``blackbox'' localization models is the direct fusion of RSSI and CSI into a single mathematical operation. RSSI is notoriously susceptible to environmental changes (e.g., physical obstructions or variable device heights), which cause sudden power drops. When clean CSI data is fused with noisy RSSI data, the noise often pollutes the overall precision \cite{ju2025hidden}. 
+Figure~\ref{fig:ipo_proposed} presents the visual flowchart for the coarse-to-fine hybrid workflow. A critical deficiency in existing ``blackbox'' localization models is the direct fusion of RSSI and CSI into a single mathematical operation. RSSI is notoriously susceptible to environmental changes (e.g., physical obstructions or variable device heights), which cause sudden power drops. When clean CSI data is fused with noisy RSSI data, the noise often pollutes the overall precision \cite{ju2025hidden}. 
 
 \begin{figure}[htbp]
 \centering
@@ -261,9 +265,14 @@ The system must satisfy the following functional requirements:
     \item It must synchronize observations across anchors at the gateway.
     \item It must support execution of both the baseline and proposed localization systems.
     \item It must generate a location estimate for each valid capture window.
+    \item It must classify observed devices as wanted or unwanted based on the authorized device list used in the trial.
     \item It must log all outputs needed for comparative analysis.
     \item It must support repeated trials across multiple known target positions.
 \end{enumerate}
+
+Device distinction is performed before localization output is finalized. The gateway maintains an authorized-device list containing the identifiers and test roles of wanted devices. During each capture window, observed packets are grouped by available device identifier and timing behavior. If an observed source matches the authorized-device list, it is tagged as wanted; if it is not listed or is assigned as the hidden target for the trial, it is tagged as unwanted. When wanted and unwanted devices are in close proximity, the system distinguishes them by maintaining separate packet groups per identifier and by comparing their RSSI and CSI observations across anchors before assigning the localization result to the corresponding device group.
+
+The output of each valid capture window is therefore not limited to a coordinate estimate. Each output record contains the device category, the estimated coordinate, the localization mode used, packet sufficiency indicators, latency, and evaluation metrics needed for comparison. The final study output consists of comparative performance tables and logged localization results for the baseline and proposed systems under identical test conditions.
 
 \subsubsection{Non-Functional Requirements}
 
@@ -276,6 +285,8 @@ The system must also satisfy the following non-functional requirements:
     \item \textbf{Efficiency:} the gateway must process synchronized windows within acceptable delay.
     \item \textbf{Maintainability:} capture, preprocessing, estimation, and logging modules must be separable and modifiable.
 \end{enumerate}
+
+These non-functional requirements will be measured empirically during the same trials used for localization comparison. Low cost will be documented through the bill of materials and the number of commodity nodes deployed. Reproducibility will be measured through repeated trials at the same target coordinates and summarized using variance, median error, and inter-trial estimate stability. Robustness will be measured by comparing successful estimate rate, packet sufficiency rate, and error escalation under normal and disturbed conditions. Efficiency will be measured using end-to-end latency and processing time per capture window recorded at the gateway. Maintainability will be assessed through the separation of capture, preprocessing, localization, and logging modules and by documenting whether each module can be tested or modified without changing the entire pipeline.
 
 \subsubsection{System Architecture}
 
@@ -321,7 +332,7 @@ The software components are:
 
 \subsubsection{Network}
 
-The network arrangement is a local passive observation network. The hidden target device transmits packets that are observed by multiple ESP32 anchors. The anchors forward packet features or aggregated window data to the Laptop (Centralized Gateway) through the local network. The target device does not need to authenticate, associate, or cooperate with the system. This is important because the study explicitly concerns hidden and non-cooperative devices, consistent with the systems motivation established in Chapter 2 \cite{ren2022lumos,ju2025hidden}.
+The network arrangement is a local passive observation network. The hidden target device transmits packets that are observed by multiple ESP32 anchors. The anchors forward packet features or aggregated window data to the Laptop (Centralized Gateway) through the local network. The target device does not need to authenticate, associate, or cooperate with the system. This is important because the study explicitly concerns hidden and non-cooperative devices, consistent with the systems motivation established in Chapter 2 \cite{ju2025hidden}.
 
 \subsection{Testing and Validation Plan}
 
@@ -341,9 +352,12 @@ Controlled testing conditions will include:
     \item trials near reflective or obstructed areas;
     \item trials with reduced anchor availability; and
     \item trials in which CSI quality becomes insufficient, to test fallback behavior in the proposed system.
+    \item trials with wanted and unwanted devices placed at separate and close-proximity positions.
 \end{enumerate}
 
 Both systems will be evaluated using the same anchor arrangement, target positions, observation duration, and ground-truth references. This controlled design ensures fair and measurable comparison.
+
+Device detection and identification will be evaluated as part of the same controlled testing process. The test cases will include: one wanted device only, one unwanted hidden device only, simultaneous wanted and unwanted devices, and close-proximity placement where both devices transmit within the same observation period. For each case, the gateway will compare observed device identifiers against the authorized-device list, separate packet groups by identifier and capture window, and assign each group a wanted or unwanted classification label before localization results are logged. Classification parameters will include authorization status, cooperation status, visibility status, and stationarity during the trial. Thus, a device may be classified as wanted-cooperative, wanted-non-cooperative, unwanted-visible, or unwanted-hidden depending on the test role assigned before the run.
 
 \subsubsection{Real-World (IRL) Testing}
 
@@ -363,6 +377,12 @@ The IRL testing procedure will follow the steps below.
     \textit{Procedure:} With the anchors active and the target device absent or inactive, the system will collect background packet observations over a fixed time interval. Environmental notes such as room occupancy, open or closed doors, and nearby active wireless devices will also be recorded. \\
     \textit{Expected Outcomes:} The system should produce a baseline record of ambient packet activity and noise conditions that can later be used to interpret changes observed during localization trials. \\
     \textit{Metrics and Validation:} Background packet rate, signal variability, observation gaps, and any anomalous interference events will be logged. These records will serve as a reference for determining whether later localization failures are caused by environmental noise rather than by algorithmic error.
+
+    \item \textbf{Step 2A: Device Detection and Classification Trial} \\
+    \textit{Purpose:} To verify that the system can distinguish wanted and unwanted devices before localization performance is interpreted. \\
+    \textit{Procedure:} The authorized-device list will be loaded into the gateway before each run. Wanted devices, unwanted devices, and close-proximity wanted--unwanted pairs will then be observed across repeated capture windows. The gateway will classify each observed device group according to authorization status, cooperation status, visibility status, and stationarity. \\
+    \textit{Expected Outcomes:} Wanted devices should be tagged as authorized sources, while hidden or unregistered sources should be tagged as unwanted targets for localization. Close-proximity devices should remain separated by identifier and capture-window grouping before their location estimates are computed. \\
+    \textit{Metrics and Validation:} Classification accuracy, false wanted rate, false unwanted rate, missed detection rate, and correct device-to-location assignment rate will be recorded. Validation will require that classification labels and localization outputs correspond to the correct device group.
 
     \item \textbf{Step 3: Real-Position Localization Trials} \\
     \textit{Purpose:} To evaluate localization accuracy under realistic deployment conditions using actual hidden-device placements. \\

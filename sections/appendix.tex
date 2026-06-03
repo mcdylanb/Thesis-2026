@@ -1,0 +1,229 @@
+\clearpage
+\onecolumn % Switches the document to a single, full-page layout
+
+\appendix
+
+% --- APPENDIX A: GANTT CHART ---
+\section*{APPENDIX A: Gantt Chart of Work}
+\label{app:gantt}
+
+\begin{center}
+    \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{prism-uploads/gantt-chart.png}\\[0.5em]
+    \textbf{Figure A.1.} Gantt Chart of Work
+\end{center}
+\clearpage
+
+\iffalse
+
+
+
+\fi
+
+\clearpage
+
+% --- APPENDIX B: Work Breakdown CHART ---
+\section*{APPENDIX B: Work Breakdown Structure (WBS)}
+
+\section{Work Breakdown Structure (WBS)}
+\label{app:wbs}
+
+To ensure systematic execution and accountability throughout the development, testing, and evaluation phases of this study, the project tasks are distributed among the three researchers. The Work Breakdown Structure (WBS) outlined in Table \ref{tab:wbs} details the primary responsibilities, though all members will collaborate during integrated system testing and manuscript finalization.
+
+\vspace{1.5em} % Adds some vertical breathing room before the table
+
+\begin{table}[htbp]
+\caption{Project Work Breakdown Structure and Task Allocation}
+\label{tab:wbs}
+\centering
+\renewcommand{\arraystretch}{1.5} % Adds generous vertical padding to rows for readability
+\begin{tabular}{|p{0.12\textwidth}|p{0.50\textwidth}|p{0.30\textwidth}|}
+\hline
+\textbf{WBS ID} & \textbf{Task Description} & \textbf{Primary Assignee(s)} \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Phase 1: Hardware and Network Deployment}} \\
+\hline
+1.1 & Flash ESP32 firmware for promiscuous packet sniffing & Mac Dylan \\
+\hline
+1.2 & Assemble physical anchors (power, mounting) & Mac Dylan \\
+\hline
+1.3 & Map TechHub coordinates and establish $(0,0)$ origin & Mac Dylan, Alec Xavier \\
+\hline
+1.4 & Establish local Wi-Fi transmission for Gateway delivery & Mac Dylan \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Phase 2: Data Pipeline and Baseline System}} \\
+\hline
+2.1 & Develop Centralized Gateway receiver script (Python) & Niño Angelo \\
+\hline
+2.2 & Program timestamp synchronization and data validation & Niño Angelo \\
+\hline
+2.3 & Implement RSSI smoothing and CSI normalization & Niño Angelo \\
+\hline
+2.4 & Build and train the Direct RSSI+CSI Baseline Model & Niño Angelo \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Phase 3: Hybrid System Development (Proposed)}} \\
+\hline
+3.1 & Develop and train the MDN for RSSI probability bounding & Alec Xavier \\
+\hline
+3.2 & Implement adjacent-subcarrier D-CFR math ($\Delta H$) & Alec Xavier \\
+\hline
+3.3 & Code the Particle Filter and Pearson Correlation weights & Alec Xavier \\
+\hline
+3.4 & Program fallback logic (MDN centroid default) & Alec Xavier, Niño Angelo \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Phase 4: Real-World Testing and Validation}} \\
+\hline
+4.1 & Execute empty-room ambient background capture & All Members \\
+\hline
+4.2 & Conduct static localization trials (P1 through P10) & All Members \\
+\hline
+4.3 & Execute disturbance tests (human blockage, anchor loss) & All Members \\
+\hline
+4.4 & Write scripts to calculate MAE, RMSE, and Stability & Niño Angelo, Alec Xavier \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Phase 5: Analysis and Documentation}} \\
+\hline
+5.1 & Generate graphs, error CDFs, and stability scatter plots & Niño Angelo \\
+\hline
+5.2 & Draft Chapter 4 (Results and Discussion) & Alec Xavier, Mac Dylan \\
+\hline
+5.3 & Finalize manuscript formatting and LaTeX compilation & All Members \\
+\hline
+5.4 & Prepare final presentation slide deck and defense script & All Members \\
+\hline
+\end{tabular}
+\end{table}
+
+\clearpage
+% --- APPENDIX C: Cost Breakdown ---
+\section*{APPENDIX C: Project Research Cost Estimates}
+
+\section{Project Research Cost Estimates}
+\label{app:cost}
+
+The following table details the estimated financial budget required to successfully deploy the hardware mesh and conduct the real-world (IRL) localization trials. The budget strictly accounts for the commodity edge hardware (ESP32 microcontrollers), power delivery, and structural mounting equipment necessary to replicate the cluttered TechHub testing environment. 
+
+The Centralized Gateway (Laptop) is excluded from the required out-of-pocket expenditure as it utilizes pre-existing student equipment. All costs are estimated in Philippine Pesos (PHP).
+
+\vspace{1.5em}
+
+\begin{table}[htbp]
+\caption{Estimated Hardware and Deployment Budget}
+\label{tab:budget}
+\centering
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|p{0.45\textwidth}|c|c|r|}
+\hline
+\textbf{Item Description} & \textbf{Quantity} & \textbf{Unit Cost (PHP)} & \textbf{Total Cost (PHP)} \\
+\hline
+\multicolumn{4}{|c|}{\textbf{Anchor Mesh \& Target Hardware}} \\
+\hline
+ESP32 NodeMCU Development Board (Anchors) & 4 & 250.00 & 1,000.00 \\
+\hline
+Micro-USB / USB-C Data \& Power Cables & 5 & 100.00 & 500.00 \\
+\hline
+\multicolumn{4}{|c|}{\textbf{Power \& Deployment Infrastructure}} \\
+\hline
+Wall Power Adapters and Extension Wires & 5 & 150.00 & 750.00 \\
+\hline
+Mounting Gear (Adhesive Strips, Mini Tripods) & 1 & 300.00 & 300.00 \\
+\hline
+\multicolumn{4}{|c|}{\textbf{Centralized Computing}} \\
+\hline
+Laptop Server / Centralized Gateway & 1 & Existing Asset & 0.00 \\
+\hline
+Hidden IoT Device (Mobile Device) & 1 & Existing Asset & 0.00 \\
+\hline
+\hline
+\multicolumn{3}{|r|}{\textbf{Subtotal:}} & \textbf{2,550.00} \\
+\hline
+\multicolumn{3}{|r|}{\textbf{20\% Contingency Buffer:}} & \textbf{510.00} \\
+\hline
+\hline
+\multicolumn{3}{|r|}{\textbf{Total Estimated Cost (PHP):}} & \textbf{3,060.00} \\
+\hline
+\end{tabular}
+\end{table}
+
+\clearpage
+% --- APPENDIX D: Advisor Acceptance ---
+\includepdf[
+    pages=-, 
+    width=\textwidth,
+    pagecommand={\section*{APPENDIX D: Notice of Advisor Acceptance}\label{app:acceptance}}
+]{prism-uploads/acceptance.pdf}
+
+\clearpage
+% --- APPENDIX E: Counseling Logbook ---
+\includepdf[
+    pages=-, 
+    width=\textwidth,
+    pagecommand={\section*{APPENDIX E: Student-Adviser Thesis Counseling Logbook}\label{app:counseling}}
+]{prism-uploads/counsels.pdf}
+
+\clearpage
+% --- APPENDIX F: FORMULAS ---
+\section*{APPENDIX F: Performance Evaluation Metrics}
+
+\section{Performance Evaluation Metrics}
+\label{app:metrics}
+
+To rigorously evaluate and compare the literature-grounded baseline system against the proposed hybrid RSSI--CSI localization framework, this study employs four primary mathematical metrics. These formulas are computed based on the Euclidean distance between the system's estimated coordinates $(\hat{x}_i, \hat{y}_i)$ and the known ground-truth coordinates $(x_i, y_i)$ over $N$ observations.
+
+\vspace{1em}
+
+\subsection*{1. Mean Absolute Error (MAE)}
+MAE serves as the primary indicator of baseline localization accuracy, representing the average physical distance error across all estimations.
+\begin{equation}
+    \text{MAE} = \frac{1}{N} \sum_{i=1}^{N} \sqrt{(\hat{x}_i - x_i)^2 + (\hat{y}_i - y_i)^2}
+\end{equation}
+
+\subsection*{2. Root Mean Square Error (RMSE)}
+RMSE penalizes larger positional errors more heavily than MAE. In cluttered indoor environments, it is utilized specifically to detect catastrophic localization failures or "wild guesses" caused by severe multipath fading.
+\begin{equation}
+    \text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} \left( (\hat{x}_i - x_i)^2 + (\hat{y}_i - y_i)^2 \right)}
+\end{equation}
+
+\subsection*{3. Estimate Stability (Standard Deviation)}
+Estimate stability quantifies the precision and coordinate jitter of the system when localizing a stationary target over continuous capture windows. It is calculated as the standard deviation ($\sigma$) of the error distribution, where $E_i$ is the error of the $i$-th estimate and $\bar{E}$ is the mean error.
+\begin{equation}
+    \sigma = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (E_i - \bar{E})^2}
+\end{equation}
+
+\subsection*{4. Robustness under Disturbance ($\Delta$ MAE)}
+Robustness defines the system's ability to maintain spatial accuracy when physical interference (e.g., dynamic human blockage or temporary anchor hardware loss) is introduced to the testbed. It is quantified as the absolute difference in MAE between the disturbed and undisturbed (ambient) conditions.
+\begin{equation}
+    \Delta\text{MAE} = |\text{MAE}_{\text{disturbed}} - \text{MAE}_{\text{ambient}}|
+\end{equation}
+
+\clearpage
+
+\section*{APPENDIX G: Advanced Algorithmic Formulations}
+\label{app:algorithms}
+
+While the system architecture and primary filtering logic are defined in Chapter 3, this appendix provides the foundational statistical formulations driving the Mixture Density Network (MDN) and the Particle Filter.
+
+\vspace{1em}
+
+\subsection*{1. Mixture Density Network (MDN) Probability Distribution}
+Unlike standard neural networks that output deterministic point estimates, the MDN models the conditional probability density $p(\mathbf{y}|\mathbf{x})$ of the target coordinate $\mathbf{y}$ given the RSSI input vector $\mathbf{x}$. This is achieved using a Gaussian Mixture Model (GMM) formulated as:
+\begin{equation}
+    p(\mathbf{y}|\mathbf{x}) = \sum_{c=1}^{C} \pi_c(\mathbf{x}) \mathcal{N}(\mathbf{y} | \boldsymbol{\mu}_c(\mathbf{x}), \sigma_c^2(\mathbf{x})\mathbf{I})
+\end{equation}
+Where:
+\begin{itemize}
+    \item $C$ is the number of mixture components.
+    \item $\pi_c(\mathbf{x})$ is the mixing coefficient (prior probability) of component $c$.
+    \item $\mathcal{N}$ is the multivariate Gaussian distribution with mean $\boldsymbol{\mu}_c(\mathbf{x})$ and variance $\sigma_c^2(\mathbf{x})$.
+\end{itemize}
+The boundary of this probability density forms the spatial heat-cloud used to constrain the Particle Filter.
+
+\subsection*{2. Particle Filter Weight Update (Sequential Monte Carlo)}
+The Particle Filter approximates the posterior probability of the target's location by updating the weights $w_t^{(i)}$ of a set of $N$ particles over time $t$. Upon calculating the Pearson Correlation $\rho$ between the observed real-time D-CFR and the $i$-th particle's stored D-CFR, the particle's weight is updated via the likelihood function:
+\begin{equation}
+    w_t^{(i)} \propto w_{t-1}^{(i)} \cdot p(\mathbf{z}_t | \mathbf{x}_t^{(i)})
+\end{equation}
+Where the likelihood $p(\mathbf{z}_t | \mathbf{x}_t^{(i)})$ is exponentially proportional to the Pearson similarity score:
+\begin{equation}
+    p(\mathbf{z}_t | \mathbf{x}_t^{(i)}) = \exp\left( \frac{\rho^{(i)}}{\tau} \right)
+\end{equation}
+Here, $\tau$ acts as a temperature parameter to control the strictness of the waveform matching. Following the weight update, the weights are normalized such that $\sum w_t^{(i)} = 1$, and standard resampling is applied to eliminate low-weight particles.

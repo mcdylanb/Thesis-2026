@@ -12,7 +12,7 @@ The study uses an Input--Process--Output (IPO) framework to represent both syste
 
 The baseline system is based on the signal-fusion direction described in the related literature, particularly the RSSI--CSI localization perspective discussed by Yang et al.\ (2013) and the CSI feature-fusion approach reported by Li et al.\ (2024) \cite{yang2013rssi2csi,li2024efficient}. Since the exact algorithmic steps are not fully enumerated in Chapter 2, the baseline is reconstructed as a realistic and literature-consistent RSSI+CSI localization pipeline in which both signal types are collected, preprocessed, fused, and used directly for position estimation. The conceptual structure of the baseline system is shown in Fig.~\ref{fig:baseline-ipo}.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\columnwidth]{prism-uploads/fig1-thesis.png}
 \caption{Baseline IPO for the direct RSSI+CSI localization pipeline from related literature.}
@@ -21,12 +21,12 @@ The baseline system is based on the signal-fusion direction described in the rel
 
 \subsubsection{Proposed System IPO}
 
-The proposed system uses the same general input sources but modifies the processing logic. Rather than fusing RSSI and CSI in a single direct localization stage, the proposed system assigns them distinct roles. RSSI is used for low-cost coarse spatial filtering, while CSI is used only after the candidate search space has been reduced. This directly addresses the research gap identified in Chapter 2, where hybrid approaches are discussed but not always operationalized as a staged decision framework under low-cost deployment constraints \cite{li2024efficient,mottakin2024swiloc,reyes2025temporal}. The conceptual structure of the proposed system is shown in Fig.~\ref{fig:proposed-ipo}.
+The proposed system uses the same general input sources but modifies the processing logic. Rather than fusing RSSI and CSI in a single direct localization stage, the proposed system assigns them distinct roles in a sequential two-stage process. RSSI is captured first and smoothed to produce an estimated area through low-cost coarse spatial filtering. CSI is then captured and refined only within that reduced candidate region to produce the final estimated asset position. This directly addresses the research gap identified in Chapter 2, where hybrid approaches are discussed but not always operationalized as a staged decision framework under low-cost deployment constraints \cite{li2024efficient,mottakin2024swiloc,reyes2025temporal}. The conceptual structure of the proposed system is shown in Fig.~\ref{fig:proposed-ipo}.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\columnwidth]{prism-uploads/fig2-thesis.png}
-\caption{Proposed IPO for the coarse-to-fine hybrid RSSI--CSI localization pipeline.}
+\includegraphics[width=0.9\columnwidth,height=0.72\textheight,keepaspectratio]{prism-uploads/IPO proposed framework-manuscript.png}
+\caption{Proposed IPO for the sequential RSSI-to-CSI localization pipeline.}
 \label{fig:proposed-ipo}
 \end{figure}
 
@@ -34,31 +34,13 @@ The proposed system uses the same general input sources but modifies the process
 
 \subsubsection{Algorithm Flow}
 
-The baseline system is reconstructed from Chapter 2 studies that use RSSI and CSI as localization evidence. In particular, Yang et al.\ (2013) discuss RSSI and CSI as alternative and comparable wireless features for indoor positioning, while Li et al.\ (2024) show that CSI feature fusion improves localization robustness under imperfect conditions \cite{yang2013rssi2csi,li2024efficient}. Based on these studies, the baseline for the present work is defined as a \textit{direct RSSI+CSI localization pipeline} in which both RSSI and CSI are collected and fused before one final localization stage. This baseline is appropriate because it uses both RSSI and CSI as required, remains realistic, and reflects a standard fused-feature localization design.
+The baseline system is reconstructed from Chapter 2 studies that use RSSI and CSI as localization evidence. In particular, Yang et al.\ (2013) discuss RSSI and CSI as alternative and comparable wireless features for indoor positioning, while Li et al.\ (2024) show that CSI feature fusion improves localization robustness under imperfect conditions \cite{yang2013rssi2csi,li2024efficient}. Based on these studies, the baseline for the present work is defined as a \textit{direct RSSI+CSI localization pipeline} in which both RSSI and CSI are collected and fused before one final localization stage. 
 
-In the baseline system, multiple ESP32 anchors are deployed around the test area and passively observe packets emitted by the hidden target device. Each anchor records packet timestamp, anchor identifier, RSSI value, and CSI amplitude information. These observations are sent to the laptop gateway, where invalid or incomplete records are discarded. The remaining records are grouped into short capture windows and aligned by timestamp so that observations from multiple anchors correspond to the same transmission interval.
+In the baseline system, multiple ESP32 anchors are deployed around the test area and passively observe packets emitted by the hidden target device. Each anchor records packet timestamp, anchor identifier, RSSI value, and CSI amplitude information. These observations are sent to the Laptop (Centralized Gateway), where invalid or incomplete records are discarded. 
 
-After synchronization, the RSSI values are smoothed to reduce packet-to-packet fluctuations caused by fading and short-term interference. The CSI amplitudes are normalized to reduce scale variation across anchors and to preserve comparable subcarrier patterns. A fused feature vector is then formed from the processed RSSI and CSI observations. In the baseline system, this fused feature vector is used directly for localization, without separating coarse and fine inference stages. The gateway then returns an estimated position for the hidden device and records timing and reliability information for later comparison.
+The baseline pseudocode is shown in Algorithm 1. It details the step-by-step logic, from hardware initialization to the final coordinate estimation.
 
-A realistic step-by-step logic for the baseline system is as follows:
-
-\begin{enumerate}
-    \item Initialize the ESP32 anchors and the laptop gateway.
-    \item Passively capture packets from the hidden target device.
-    \item Extract timestamp, anchor identifier, RSSI, and CSI amplitude features from each received packet.
-    \item Send all observations to the gateway.
-    \item Remove corrupt, incomplete, or duplicate records.
-    \item Group records into synchronized capture windows.
-    \item Smooth RSSI values over the window.
-    \item Normalize CSI amplitudes and derive CSI feature vectors.
-    \item Fuse RSSI and CSI features into a single localization input.
-    \item Apply direct RSSI+CSI localization estimation.
-    \item Output the estimated position and log processing metrics.
-\end{enumerate}
-
-The baseline pseudocode is shown below.
-
-\begin{algorithm}[!ht]
+\begin{algorithm}[htbp]
 \caption{Baseline Direct RSSI+CSI Localization}
 \begin{algorithmic}[1]
 \State Initialize anchors and gateway
@@ -80,13 +62,14 @@ The baseline pseudocode is shown below.
 \EndWhile
 \end{algorithmic}
 \end{algorithm}
-\vfill
 
-\subsubsection{Algorithm Visualization}
+\subsubsection{Algorithm Visualization and Processing}
 
-Figure~\ref{fig:baseline-flow} summarizes the baseline direct RSSI+CSI localization workflow reconstructed from the related literature.
+Once the data is collected by the gateway, the remaining records are grouped into short capture windows and aligned by timestamp so that observations from multiple anchors correspond to the same transmission interval. After synchronization, the RSSI values are smoothed to reduce packet-to-packet fluctuations caused by fading and short-term interference. The CSI amplitudes are normalized to reduce scale variation across anchors and to preserve comparable subcarrier patterns. 
 
-\begin{figure}[H]
+Figure~\ref{fig:baseline-flow} summarizes this baseline direct RSSI+CSI localization workflow. As visualized, the fused feature vector is used directly for localization, without separating coarse and fine inference stages. The gateway then returns an estimated position for the hidden device and records timing and reliability information for later comparison.
+
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\columnwidth,height=0.70\textheight,keepaspectratio]{prism-uploads/fig3-thesis.png}
 \caption{Baseline flowchart for the direct RSSI+CSI localization pipeline from related literature.}
@@ -97,75 +80,144 @@ Figure~\ref{fig:baseline-flow} summarizes the baseline direct RSSI+CSI localizat
 
 \subsubsection{Algorithm Flow}
 
-The proposed system improves on the baseline by changing how RSSI and CSI are used. Instead of treating both as equal inputs to a single direct localization step, the proposed method separates their roles. RSSI is used first to estimate a coarse region, while CSI is used second to refine the estimate only within that reduced candidate region. This design is grounded in the findings of Chapter 2: RSSI remains computationally simple but spatially unstable, whereas CSI is more discriminative but more computationally demanding \cite{yang2013rssi2csi,ghany2020robustness,li2024efficient,reyes2025temporal}. The proposed method therefore treats hybridization as \textit{adaptive sequencing} rather than mere feature fusion.
+The proposed system improves on the baseline by changing how RSSI and CSI are used. Instead of treating both as equal inputs to a single direct localization step, the proposed method explicitly separates their roles. 
 
-In the proposed system, the same set of ESP32 anchors passively collects RSSI and CSI observations from the stationary hidden device. The laptop gateway validates and synchronizes these records so that both the baseline and proposed systems begin from equivalent capture conditions. RSSI values are then used to estimate a coarse search area such as a zone, desk cluster, or bounded region of the room. This first stage reduces the search space and serves as a low-cost filter. The system then checks whether CSI observations are sufficient and stable for refinement. If they are, CSI features are compared only within the candidate positions belonging to the coarse zone. A refined estimate is then generated. If CSI observations are insufficient, the system falls back to the RSSI-based estimate instead of dropping the capture window completely.
+In the proposed system, ESP32 anchors passively collect RSSI and CSI observations. The Laptop (Centralized Gateway) validates and synchronizes these records. RSSI is deployed first as a coarse "scout" to estimate a bounding area, serving as a low-cost filter. The system then calculates the Differential Channel Frequency Response (D-CFR) from the single-antenna CSI data to cancel out hardware noise. Finally, a Particle Filter refines the estimate by comparing these D-CFR waveforms exclusively within the candidate region. 
 
-This proposed workflow differs from the baseline in four key respects. First, it explicitly separates coarse and fine inference. Second, it reduces CSI computation by restricting refinement to a smaller candidate set. Third, it introduces fallback behavior for incomplete CSI conditions. Fourth, it better aligns with the objectives of the study, particularly low-cost deployment, robustness under imperfect measurements, and improved hidden-device localization in cluttered classrooms \cite{mottakin2024swiloc,li2024efficient,reyes2025temporal}.
+Algorithm 2 outlines the proposed hybrid workflow, demonstrating the logic fallback triggers if CSI observations degrade during a capture window.
 
-The proposed algorithm follows these steps:
-
-\begin{enumerate}
-    \item Initialize the ESP32 anchors and the laptop gateway.
-    \item Passively capture packets from the hidden target device.
-    \item Extract timestamp, anchor identifier, RSSI, and CSI from each valid packet.
-    \item Remove corrupted or incomplete records.
-    \item Group observations into synchronized capture windows.
-    \item Smooth RSSI values and normalize CSI amplitudes.
-    \item Use RSSI values to estimate a coarse search zone.
-    \item Check whether CSI observations are sufficient and stable.
-    \item If CSI is sufficient, evaluate candidate positions only within the coarse zone using CSI features.
-    \item Generate the refined hybrid position estimate.
-    \item If CSI is insufficient, output the RSSI-based fallback estimate.
-    \item Log final estimate, mode used, latency, and reliability indicators.
-\end{enumerate}
-
-\newpage
-The proposed pseudocode is shown below.
-
-\begin{algorithm}[!ht]
-\caption{Proposed Hybrid Coarse-to-Fine RSSI--CSI Localization}
+\begin{algorithm}[htbp]
+\caption{Proposed Hybrid Coarse-to-Fine Localization (Scout/Sniper)}
+\label{alg:proposed_hybrid}
 \begin{algorithmic}[1]
-\State Initialize anchors and gateway
+\State \textbf{Initialize} ESP32 anchors and Laptop as gateway
 \While{system is active}
-    \State Capture packets from passive anchors
-    \State Extract tuple $(id, t, RSSI, CSI, anchor)$
-    \State Send tuples to gateway
-    \State Remove corrupt or incomplete tuples
-    \State Group tuples by capture window and target identifier
+    \State \textbf{Input:} Mobile device emits RF signals
+    \State ESP32 sniffer captures packets $\to$ yields Raw RSSI and CSI data
+    \State Send $(id, t, RSSI, CSI, anchor)$ tuples to gateway
+    \State Group and synchronize valid tuples by capture window
+    
     \If{valid anchor observations $<$ minimum required}
-        \State Mark window as insufficient and continue
+        \State Mark window as insufficient and \textbf{continue}
     \EndIf
-    \State Synchronize tuples across anchors
-    \State Smooth RSSI values
-    \State Normalize CSI amplitudes
-    \State Estimate coarse zone using RSSI
+    
+    \Statex \textbf{--- SCOUT PHASE (Coarse Localization) ---}
+    \State Smooth raw RSSI values
+    \State Feed smoothed RSSI into trained Mixture Density Network (MDN)
+    \State Output spatial probability distribution (GMM Heatcloud)
+    \State Draw perimeter (Bounding Box) isolating the 95\% densest probability mass
+    
+    \Statex \textbf{--- SNIPER PHASE (Fine Refinement) ---}
     \If{CSI observations are sufficient and stable}
-        \State Evaluate candidate positions within the coarse zone using CSI
-        \State Generate refined hybrid estimate
+        \State Process raw CSI using Differential CFR (D-CFR) transformation
+        \State Initialize Particle Filter: Scatter thousands of particles $l_j$ \textit{strictly} within the Bounding Box
+        \For{each particle $l_j$ inside bounding box}
+            \State Extract Stored D-CFR fingerprint for location $l_j$
+            \State Compare Live D-CFR against Stored D-CFR using Pearson Correlation $\rho$
+            \State Assign weight $w_j$ to particle $l_j$ based on correlation score
+        \EndFor
+        \State Execute Sequential Monte Carlo sampling (Resampling phase)
+        \State \quad $\to$ Kill off particles with low weights (bad guesses)
+        \State \quad $\to$ Duplicate particles with high weights (good guesses to form clusters)
+        \State Calculate weighted average (Centroid) of the surviving clustered particles
+        \State Final Coordinate $(x_{est}, y_{est}) \gets$ Centroid
     \Else
-        \State Use RSSI coarse estimate as fallback
+        \State \textbf{Fallback:} Use center of RSSI Bounding Box as coarse estimate
     \EndIf
-    \State Log final position, mode used, latency, and packet sufficiency indicators
+    
+    \State \textbf{Output:} Log final coordinate $(x, y)$, mode used, and system latency
 \EndWhile
 \end{algorithmic}
 \end{algorithm}
 
-\vfill
-\newpage
+\subsubsection{Algorithm Visualization and Role Separation}
 
-\subsubsection{Algorithm Visualization}
+Figure~\ref{fig:proposed-flow} presents the visual flowchart for the coarse-to-fine hybrid workflow. A critical deficiency in existing ``blackbox'' localization models is the direct fusion of RSSI and CSI into a single mathematical operation. RSSI is notoriously susceptible to environmental changes (e.g., physical obstructions or variable device heights), which cause sudden power drops. When clean CSI data is fused with noisy RSSI data, the noise often pollutes the overall precision \cite{ju2025hidden}. 
 
-
-
-Figure~\ref{fig:proposed-flow} presents the proposed coarse-to-fine hybrid workflow with fallback behavior when CSI observations are insufficient.
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\columnwidth,height=0.70\textheight,keepaspectratio]{prism-uploads/fig4-thesis.png}
-\caption{Proposed flowchart for the coarse-to-fine hybrid RSSI--CSI localization pipeline with fallback.}
-\label{fig:proposed-flow}
+\begin{tikzpicture}[
+    node distance=1.5cm and 2cm,
+    % Define styles for the flowchart
+    input/.style={trapezium, trapezium left angle=70, trapezium right angle=110, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=blue!10, text width=4cm},
+    process/.style={rectangle, minimum width=4cm, minimum height=1cm, text centered, draw=black, fill=gray!10, text width=5cm},
+    scout/.style={rectangle, rounded corners, minimum width=4cm, minimum height=1cm, text centered, draw=black, fill=orange!15, text width=5cm},
+    sniper/.style={rectangle, rounded corners, minimum width=4cm, minimum height=1cm, text centered, draw=black, fill=green!15, text width=5cm},
+    output/.style={trapezium, trapezium left angle=70, trapezium right angle=110, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=red!10, text width=4cm},
+    arrow/.style={thick,->,>=stealth}
+]
+
+% Nodes
+\node (in1) [input] {\textbf{Input}\\ESP32 Sniffers capture Raw RSSI \& CSI from Mobile Device};
+
+\node (p1) [scout, below=of in1] {\textbf{Scout Phase (RSSI)}\\Feed raw RSSI into Mixture Density Network (MDN)};
+\node (p2) [scout, below=0.8cm of p1] {Generate spatial probability GMM (Heatcloud)};
+\node (p3) [scout, below=0.8cm of p2] {Draw geometric bounding box around densest probability mass};
+
+\node (p4) [sniper, below=1.2cm of p3] {\textbf{Sniper Phase (CSI)}\\Initialize Particle Filter (scatter virtual guesses inside bounding box)};
+\node (p5) [sniper, below=0.8cm of p4] {Process raw CSI using D-CFR transformation ($\Delta H$)};
+\node (p6) [sniper, below=0.8cm of p5] {Evaluate particles: Pearson Correlation of Live vs. Stored D-CFR};
+\node (p7) [sniper, below=0.8cm of p6] {Monte Carlo Resampling: Kill bad guesses, cluster good guesses};
+\node (p8) [sniper, below=0.8cm of p7] {Calculate weighted average (Centroid) of clustered particles};
+
+\node (out1) [output, below=of p8] {\textbf{Output}\\Final Refined Coordinate $(x, y)$};
+
+% Bounding Boxes for Process Stages
+\node[draw, dashed, inner sep=10pt, fit=(p1) (p3), label=right:\textbf{Coarse Localization}] (box1) {};
+\node[draw, dashed, inner sep=10pt, fit=(p4) (p8), label=right:\textbf{Fine Refinement}] (box2) {};
+
+% Arrows
+\draw [arrow] (in1) -- (p1);
+\draw [arrow] (p1) -- (p2);
+\draw [arrow] (p2) -- (p3);
+\draw [arrow] (p3) -- (p4);
+\draw [arrow] (p4) -- (p5);
+\draw [arrow] (p5) -- (p6);
+\draw [arrow] (p6) -- (p7);
+\draw [arrow] (p7) -- (p8);
+\draw [arrow] (p8) -- (out1);
+
+\end{tikzpicture}
+\caption{Input-Process-Output (IPO) framework illustrating the proposed hybrid ``Scout and Sniper'' role-separation methodology.}
+\label{fig:ipo_proposed}
 \end{figure}
+
+To address this, the proposed system implements strict \textit{role separation}. RSSI acts purely as a low-cost ``scout,'' establishing a coarse bounding box to eliminate the majority of the room from the search space. Once the candidate region is bounded, the heavy lifting is handed over to the ``sniper'' which is fine-grained Differential CSI (D-CFR) analysis that is deployed exclusively within this targeted area.
+
+\subsubsection{RSSI Coarse Bounding and Fallback via Mixture Density Network (MDN)}
+\label{sec:mdn_scout}
+
+To establish the coarse bounding zone during the "scout" phase, the proposed system utilizes a Mixture Density Network (MDN) trained on RSSI observations. Standard neural networks and deterministic algorithms (such as trilateration) typically output a single $(x,y)$ coordinate, which is highly susceptible to the severe multipath fading and signal absorption inherent in cluttered environments. In contrast, an MDN models the inherent uncertainty of noisy RSSI signals by outputting a spatial probability distribution—effectively generating a confidence heat-cloud of the target's location.
+
+The mathematical boundary of this high-probability distribution serves as the restrictive search space for the fine-grained localization stage. By confining the subsequent Particle Filter solely to this specific zone, the MDN actively filters out spatial outliers and significantly reduces the computational overhead of the system. 
+
+Furthermore, the MDN acts as the system's primary fallback mechanism. As defined in the algorithmic workflow, if CSI observations suffer from severe degradation—such as hardware dropout or extreme physical interference—the fine-grained refinement stage is bypassed. In this event, the system defaults to the mean coordinate (the highest probability center) of the MDN distribution. This guarantees a robust, zero-downtime localization pipeline even when complex signal data is temporarily compromised.
+
+\subsubsection{Differential CSI (D-CFR) on a Single Antenna}
+\label{sec:dcfr}
+Standard ESP32 microcontrollers are constrained to a Single-Input Single-Output (SISO) architecture, rendering cross-antenna differential calculations impossible. Furthermore, unsynchronized hardware clocks between the non-cooperative target device and the ESP32 anchor introduce Carrier Frequency Offset (CFO) and Sampling Frequency Offset (SFO). This hardware desynchronization injects severe noise into raw CSI readings.
+
+To sanitize this data, the proposed system calculates the Differential Channel Frequency Response (D-CFR) between adjacent subcarriers on a single antenna. Because clock offsets affect adjacent frequencies almost identically, calculating the difference cancels out the hardware-induced error. What remains is the true multipath distortion caused strictly by the physical environment. Let $|H_k|$ denote the amplitude of the $k$-th subcarrier. The differential amplitude vector $\Delta H$ is defined as:
+
+\begin{equation}
+    \Delta H = \Big[ |H_2| - |H_1|, |H_3| - |H_2|, \dots, |H_N| - |H_{N-1}| \Big]
+\end{equation}
+
+By utilizing $\Delta H$, the system extracts a highly stable, height-invariant waveform shape that serves as a unique spatial fingerprint for the hidden device \cite{wu2012csi}.
+
+\subsubsection{Particle Filter Integration via Pearson Correlation Similarity}
+Within the RSSI bounding box, a Particle Filter (PF) is deployed to pinpoint the final position. The PF initializes a set of particles, each representing a hypothetical location $l_j$ restricted to the coarse zone. 
+
+To evaluate the likelihood of each particle, the system calculates the Euclidean similarity between the observed real-time D-CFR waveform $\Delta H(O)$ and the stored D-CFR fingerprint $\Delta H(l_j)$ from the radio map. As established by Wu et al., this waveform similarity is implemented mathematically via the Pearson correlation coefficient to prioritize the signal's multipath shape over absolute power \cite{wu2012csi}:
+
+\begin{equation}
+\label{eq:pearson}
+\resizebox{0.95\columnwidth}{!}{$
+    \rho_{\Delta H(O),\Delta H(l_j)} = \frac{\sum_{k=1}^{N-1} \left( \Delta H^k(O) - \overline{\Delta H(O)} \right) \left( \Delta H^k(l_j) - \overline{\Delta H(l_j)} \right)}{\sqrt{\sum \left( \Delta H^k(O) - \overline{\Delta H(O)} \right)^2 \sum \left( \Delta H^k(l_j) - \overline{\Delta H(l_j)} \right)^2}}
+$}
+\end{equation}
+
+This correlation score dictates the weight updates for the Particle Filter. Particles with D-CFR waveforms that highly correlate to the observed signal are assigned higher weights. The filter resamples based on these weights, converging the system's final coordinate estimate toward the true device location while remaining immune to the absolute power drops that typically cripple standard RSSI localization.
 
 \subsection{Comparison / Analysis}
 
@@ -184,18 +236,18 @@ The baseline is expected to provide a simpler direct localization pipeline, but 
 
 \subsubsection{Experimental Environment (TechHub Floor Plan)}
 
-The experimental environment is the selected TechHub classroom or laboratory test area where the hidden device is placed at predetermined static positions. Multiple ESP32 anchors are positioned around the perimeter or corners of the room to provide spatial diversity. The laptop gateway is placed at a monitoring station where all observations are synchronized and processed. Since the study concerns stationary hidden-device localization rather than continuous user tracking, the main experimental concern is repeated placement of the target at known positions rather than long movement trajectories. If movement is included for packet diversity, it will be treated as controlled repositioning between trials rather than continuous tracking.
+The experimental environment is the selected TechHub classroom or laboratory test area where the hidden device is placed at predetermined static positions. Multiple ESP32 anchors are positioned around the perimeter or corners of the room to provide spatial diversity. The Laptop (Centralized Gateway) is placed at a monitoring station where all observations are synchronized and processed. Since the study concerns stationary hidden-device localization rather than continuous user tracking, the main experimental concern is repeated placement of the target at known positions rather than long movement trajectories. If movement is included for packet diversity, it will be treated as controlled repositioning between trials rather than continuous tracking.
 
 Figure~\ref{fig:techhub-floorplan} shows the uploaded TechHub floor plan used as the experimental layout reference.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\columnwidth]{prism-uploads/techhub.jpeg}
 \caption{Uploaded TechHub floor plan used as the experimental layout reference for anchor placement, gateway location, and target test positions.}
 \label{fig:techhub-floorplan}
 \end{figure}
 
-In this layout, \texttt{A1--A4} denote the ESP32 anchors, \texttt{P1--P10} denote predetermined hidden-device test positions, and the gateway is the laptop monitoring station. The signal sources in the experiment are the target device transmissions observed by the anchors. Because the target is stationary during each run, each point is tested through repeated capture windows rather than a continuous movement path.
+In this layout, \texttt{A1--A4} denote the ESP32 anchors, \texttt{P1--P10} denote predetermined hidden-device test positions, and the gateway is the Laptop (Centralized Gateway) monitoring station. The signal sources in the experiment are the target device transmissions observed by the anchors. Because the target is stationary during each run, each point is tested through repeated capture windows rather than a continuous movement path.
 
 \subsection{Systems Analysis and Design}
 
@@ -218,7 +270,7 @@ The system must satisfy the following functional requirements:
 The system must also satisfy the following non-functional requirements:
 
 \begin{enumerate}
-    \item \textbf{Low cost:} the platform must remain deployable using commodity ESP32 anchors and a laptop gateway.
+    \item \textbf{Low cost:} the platform must remain deployable using commodity ESP32 anchors and a Laptop (Centralized Gateway).
     \item \textbf{Reproducibility:} the capture and processing workflow must remain consistent across repeated trials.
     \item \textbf{Robustness:} the system must tolerate packet noise, multipath distortion, and partial data loss.
     \item \textbf{Efficiency:} the gateway must process synchronized windows within acceptable delay.
@@ -227,12 +279,12 @@ The system must also satisfy the following non-functional requirements:
 
 \subsubsection{System Architecture}
 
-The system architecture follows a distributed-sensing and centralized-processing design. Multiple ESP32 anchors perform passive packet observation, while the laptop gateway performs synchronization, preprocessing, localization, and logging. The architecture contains four layers:
+The system architecture follows a distributed-sensing and centralized-processing design. Multiple ESP32 anchors perform passive packet observation, while the Laptop (Centralized Gateway) performs synchronization, preprocessing, localization, and logging. The architecture contains four layers:
 
 \begin{enumerate}
     \item \textbf{Target layer:} the hidden IoT device emitting observable wireless packets.
     \item \textbf{Anchor layer:} ESP32 nodes capturing RSSI and CSI-related measurements.
-    \item \textbf{Gateway layer:} laptop executing either the baseline or proposed localization pipeline.
+    \item \textbf{Gateway layer:} Laptop (Centralized Gateway) executing either the baseline or proposed localization pipeline.
     \item \textbf{Evaluation layer:} the analysis stage where outputs are compared against ground truth.
 \end{enumerate}
 
@@ -246,13 +298,13 @@ The hardware components of the system are:
 
 \begin{enumerate}
     \item ESP32 microcontrollers serving as passive anchor nodes;
-    \item laptop serving as the gateway and processing unit;
+    \item Laptop (Centralized Gateway) serving as the gateway and processing unit;
     \item the hidden IoT target device used during localization trials;
     \item power supplies and mounting fixtures for stable anchor placement; and
     \item the TechHub classroom test environment containing walls, desks, and other multipath-causing structures.
 \end{enumerate}
 
-Each ESP32 anchor is responsible for local observation of target packets. The laptop is responsible for centralized synchronization, inference, and logging. The classroom environment is part of the method because the research specifically examines cluttered indoor multipath conditions.
+Each ESP32 anchor is responsible for local observation of target packets. The Laptop (Centralized Gateway) is responsible for centralized synchronization, inference, and logging. The classroom environment is part of the method because the research specifically examines cluttered indoor multipath conditions.
 
 \subsubsection{Software}
 
@@ -269,7 +321,7 @@ The software components are:
 
 \subsubsection{Network}
 
-The network arrangement is a local passive observation network. The hidden target device transmits packets that are observed by multiple ESP32 anchors. The anchors forward packet features or aggregated window data to the laptop gateway through the local network. The target device does not need to authenticate, associate, or cooperate with the system. This is important because the study explicitly concerns hidden and non-cooperative devices, consistent with the systems motivation established in Chapter 2 \cite{ren2022lumos,ju2025hidden}.
+The network arrangement is a local passive observation network. The hidden target device transmits packets that are observed by multiple ESP32 anchors. The anchors forward packet features or aggregated window data to the Laptop (Centralized Gateway) through the local network. The target device does not need to authenticate, associate, or cooperate with the system. This is important because the study explicitly concerns hidden and non-cooperative devices, consistent with the systems motivation established in Chapter 2 \cite{ren2022lumos,ju2025hidden}.
 
 \subsection{Testing and Validation Plan}
 
@@ -277,7 +329,7 @@ Testing will be conducted at three levels for both systems.
 
 \textbf{Unit testing} will be applied to individual modules such as packet parsing, timestamp synchronization, RSSI smoothing, CSI normalization, feature fusion, coarse-zone estimation, CSI refinement, fallback logic, and metric computation. Each module will be tested independently using known inputs and expected outputs so that failures can be isolated before full deployment. Validation at this level will focus on input-output correctness, execution consistency, and error handling for incomplete or malformed records.
 
-\textbf{Integration testing} will verify that anchor observations are correctly transferred to the gateway, that synchronized capture windows are formed properly, and that both baseline and proposed systems receive equivalent inputs from the same sensing process. This stage will specifically test the interaction between ESP32 anchors, the laptop gateway, the preprocessing pipeline, and the localization modules. Integration will be considered successful when packet records are delivered without structural mismatch, timestamps are aligned correctly, and the gateway generates valid localization windows from multi-anchor observations.
+\textbf{Integration testing} will verify that anchor observations are correctly transferred to the gateway, that synchronized capture windows are formed properly, and that both baseline and proposed systems receive equivalent inputs from the same sensing process. This stage will specifically test the interaction between ESP32 anchors, the Laptop (Centralized Gateway), the preprocessing pipeline, and the localization modules. Integration will be considered successful when packet records are delivered without structural mismatch, timestamps are aligned correctly, and the gateway generates valid localization windows from multi-anchor observations.
 
 \textbf{System testing} will be conducted in the actual TechHub environment using predetermined hidden-device positions. For each position, multiple capture windows will be collected so that accuracy, stability, and latency can be measured across repeated trials. At this level, the full sensing, preprocessing, localization, and logging chain will be evaluated as one operational system under realistic environmental conditions.
 
@@ -302,7 +354,7 @@ The IRL testing procedure will follow the steps below.
 \begin{enumerate}
     \item \textbf{Step 1: Site Preparation and Deployment Verification} \\
     \textit{Purpose:} To confirm that the physical deployment of the anchors and gateway matches the intended experimental layout before real-world trials begin. \\
-    \textit{Procedure:} The ESP32 anchors will be mounted at their assigned positions in the TechHub environment, powered continuously, and connected to the laptop gateway. Anchor visibility, packet reception, timestamp consistency, and gateway logging will be checked before any localization trial is started. \\
+    \textit{Procedure:} The ESP32 anchors will be mounted at their assigned positions in the TechHub environment, powered continuously, and connected to the Laptop (Centralized Gateway). Anchor visibility, packet reception, timestamp consistency, and gateway logging will be checked before any localization trial is started. \\
     \textit{Expected Outcomes:} All anchors should report observations to the gateway without persistent communication failure. The gateway should correctly register anchor identity, packet records, and synchronized windows. \\
     \textit{Metrics and Validation:} Anchor availability rate, packet reception continuity, gateway connectivity status, and synchronization success rate will be recorded. Deployment will be accepted only if all required anchors remain operational for the full calibration interval.
 
@@ -333,7 +385,7 @@ The IRL testing procedure will follow the steps below.
     \item \textbf{Step 6: Hardware and Software Operational Validation} \\
     \textit{Purpose:} To verify that both the hardware platform and software pipeline remain dependable during extended IRL use. \\
     \textit{Procedure:} Throughout the real-world trials, the system will monitor anchor uptime, gateway logging continuity, packet parsing integrity, synchronization consistency, and correctness of recorded outputs. Any mismatch between observed device state and logged system state will be documented immediately. \\
-    \textit{Expected Outcomes:} The ESP32 anchors should remain powered and responsive, the laptop gateway should complete logging without crash or data corruption, and the software pipeline should continue to process incoming windows without structural failure. \\
+    \textit{Expected Outcomes:} The ESP32 anchors should remain powered and responsive, the Laptop (Centralized Gateway) should complete logging without crash or data corruption, and the software pipeline should continue to process incoming windows without structural failure. \\
     \textit{Metrics and Validation:} Hardware uptime, dropped-record count, parsing error rate, synchronization failure rate, and log completeness will be measured. Validation at this step requires that the system finish each IRL session with complete and analyzable records.
 
     \item \textbf{Step 7: User-Operator Interaction and Result Review} \\
@@ -351,7 +403,7 @@ The IRL testing procedure will follow the steps below.
 
 \subsection{Validation and Deployment Plan}
 
-Deployment begins with calibration of anchor positions inside the TechHub environment and verification that all ESP32 nodes can report observations to the laptop gateway. After communication and timestamp alignment are confirmed, baseline measurements of the indoor RF environment will be collected. Formal experimentation will then proceed by placing the hidden target device at predetermined coordinates and collecting repeated capture windows for both baseline and proposed processing.
+Deployment begins with calibration of anchor positions inside the TechHub environment and verification that all ESP32 nodes can report observations to the Laptop (Centralized Gateway). After communication and timestamp alignment are confirmed, baseline measurements of the indoor RF environment will be collected. Formal experimentation will then proceed by placing the hidden target device at predetermined coordinates and collecting repeated capture windows for both baseline and proposed processing.
 
 User interaction during deployment is minimal. The operator mainly sets anchor positions, selects the target test point, initiates capture, and reads the resulting localization output from the gateway. Since the study is focused on hidden-device localization rather than an interactive end-user application, the main operational priority is consistency of deployment rather than complex user control.
 

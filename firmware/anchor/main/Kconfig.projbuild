@@ -1,0 +1,92 @@
+menu "Anchor Configuration"
+
+    config ANCHOR_ID
+        string "Anchor identifier"
+        default "A1"
+        help
+            Identifier emitted in every CSV line (A1..A4). This is the only
+            per-board difference; set it before flashing each anchor.
+
+    config ANCHOR_WIFI_CHANNEL
+        int "Sniffing WiFi channel (serial mode only)"
+        range 1 13
+        default 6
+        help
+            Fixed 2.4 GHz channel the anchor listens on. Ignored when UDP
+            mode is enabled, because associating to an AP locks the radio
+            to the AP's channel.
+
+    choice ANCHOR_FRAME_FILTER
+        prompt "Promiscuous frame filter"
+        default ANCHOR_FILTER_MGMT_DATA
+        help
+            Which 802.11 frame classes the radio passes up. MGMT+DATA is
+            the right default for localization: data/ACK traffic from the
+            target plus probe/beacon management frames.
+
+        config ANCHOR_FILTER_MGMT_DATA
+            bool "Management + Data frames"
+        config ANCHOR_FILTER_MGMT_ONLY
+            bool "Management frames only"
+        config ANCHOR_FILTER_ALL
+            bool "All frames"
+    endchoice
+
+    config ANCHOR_UART_BAUD
+        int "UART baud rate for CSV output"
+        default 921600
+        help
+            921600 sustains ~288 amplitude lines/s. Fall back to 460800 if
+            a CH340-based board misbehaves at 921600. Keep this equal to
+            CONFIG_ESP_CONSOLE_UART_BAUDRATE in sdkconfig.defaults.
+
+    config ANCHOR_CSI_OUTPUT_RAW_IQ
+        bool "Output raw CSI I/Q pairs instead of amplitudes (debug)"
+        default n
+        help
+            Default (n) emits 64 amplitude values (sqrt(I^2+Q^2)). Enable
+            to emit the 128 raw int8 values (imag,real alternating) for
+            validating the amplitude math on the gateway. Roughly doubles
+            the serial load.
+
+    config ANCHOR_QUEUE_DEPTH
+        int "Record queue depth between CSI callback and writer task"
+        default 64
+        help
+            Each record is ~148 bytes. When the queue is full new records
+            are dropped and counted (reported in STAT lines).
+
+    config ANCHOR_STATS_INTERVAL_S
+        int "STAT line interval (seconds)"
+        default 5
+
+    config ANCHOR_UDP_ENABLE
+        bool "Forward records over WiFi UDP as well as serial"
+        default n
+        help
+            Joins the configured AP as a station and mirrors every CSV
+            line to the gateway as one UDP datagram. CONSTRAINT: the
+            radio is then locked to the AP's channel, so the target must
+            transmit on that same channel. Serial output stays active.
+
+    if ANCHOR_UDP_ENABLE
+
+        config ANCHOR_UDP_SSID
+            string "AP SSID"
+            default "thesis-hotspot"
+
+        config ANCHOR_UDP_PASSWORD
+            string "AP password"
+            default ""
+
+        config ANCHOR_UDP_GATEWAY_IP
+            string "Gateway (laptop) IPv4 address"
+            default "192.168.1.100"
+
+        config ANCHOR_UDP_GATEWAY_PORT
+            int "Gateway UDP port"
+            default 5555
+
+    endif
+
+endmenu

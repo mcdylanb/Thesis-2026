@@ -1,0 +1,15 @@
+# Anchor firmware defaults — ESP-IDF v5.4, target: esp32 (classic)
+
+# CSI support is compiled out of the WiFi driver unless this is set.
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+
+# Console UART shares the CSV output rate so idf.py monitor and the
+# gateway logger both open the port at one speed.
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+
+# 1 ms tick for responsive queue/timeout behavior in the writer task.
+CONFIG_FREERTOS_HZ=1000
+
+# Keep IDF log chatter off the CSV stream after boot (parser also
+# ignores any line not starting with CSI,/STAT,/INFO,).
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y

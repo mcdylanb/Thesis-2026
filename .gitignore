@@ -6,3 +6,9 @@ main.bbl
 main.blg
 main.fdb_latexmk
 main.synctex.gz
+
+# ESP-IDF firmware build artifacts
+firmware/anchor/sdkconfig
+firmware/anchor/sdkconfig.old
+firmware/**/build/
+firmware/tools/data/

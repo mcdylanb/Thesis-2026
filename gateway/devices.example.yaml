@@ -1,0 +1,18 @@
+# Authorized-device list for one trial. Copy and edit per run.
+# Unlisted MACs are tagged with default_role — a hidden device is by
+# definition not on the authorized list.
+trial: P3_run1
+default_role: unwanted
+devices:
+  - mac: "a4:cf:12:3b:9e:01"
+    label: hidden-target-esp32
+    role: unwanted        # this trial's hidden target
+    attrs:
+      cooperation: non-cooperative
+      visibility: hidden
+  - mac: "3c:22:fb:aa:10:07"
+    label: researcher-phone
+    role: wanted
+    attrs:
+      cooperation: cooperative
+      visibility: visible

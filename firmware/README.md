@@ -102,11 +102,13 @@ CSI,A2,10482,a4:cf:12:3b:9e:01,-58,1,6,1849302811,64,0,0,0,0,12,14,15,15,17, ...
 The 64 values are in LLTF hardware buffer order: entries 0–31 map to
 subcarriers 0…+31, entries 32–63 map to −32…−1. Usable data subcarriers are
 −26…−1 and +1…+26 (**52 values**); DC (entry 0) and the guard band
-(±27…±32) are null and must be dropped by the gateway. 52 amplitudes yield
-the 51 D-CFR differentials used by the proposed pipeline. The first two
-entries of the raw buffer are additionally hardware-invalid
-(`first_word_invalid`) — they land in the null region, but never interpret
-them.
+(±27…±32) are null and must be dropped by the gateway. The ESP32 also marks
+the first buffer *word* invalid (`first_word_invalid`): hardware indices 0
+and 1. Index 0 is DC (dropped anyway); **index 1 is subcarrier +1**, and
+real captures confirm it is corrupt (reads ~3 while its neighbors read ~25).
+The gateway therefore drops subcarrier +1 too by default, leaving **51
+usable subcarriers → 50 D-CFR differentials** (`gateway/csi.py`,
+`--keep-first-subcarrier` restores the textbook 52/51).
 
 ### Known signal caveats
 

@@ -7,6 +7,11 @@ main.blg
 main.fdb_latexmk
 main.synctex.gz
 
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+
 # ESP-IDF firmware build artifacts
 firmware/anchor/sdkconfig
 firmware/anchor/sdkconfig.old

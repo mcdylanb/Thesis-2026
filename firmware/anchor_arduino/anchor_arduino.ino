@@ -30,7 +30,7 @@
 // ==================== CONFIG (edit per deployment) ====================
 
 #define ANCHOR_ID        "A1"   // A1..A4 — the ONLY per-board difference
-#define WIFI_CHANNEL     4      // sniff channel, 1..13 (serial mode only)
+#define WIFI_CHANNEL     11      // sniff channel, 1..13 (serial mode only)
 #define SERIAL_BAUD      921600 // fallback 460800 if a CH340 clone misbehaves
 
 // Frame classes passed up by the radio.

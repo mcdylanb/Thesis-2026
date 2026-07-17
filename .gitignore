@@ -17,3 +17,5 @@ firmware/anchor/sdkconfig
 firmware/anchor/sdkconfig.old
 firmware/**/build/
 firmware/tools/data/
+
+.vscode

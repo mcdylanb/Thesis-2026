@@ -148,6 +148,9 @@ nc -ul 5555
 ## Gateway logger
 
 ```sh
+cd Thesis-2026
+python -m venv .venv 
+source .venv/bin/activate 
 cd firmware/tools
 pip install -r requirements.txt
 python gateway_logger.py --port /dev/cu.usbserial-0001:A1 \
@@ -158,6 +161,21 @@ python gateway_logger.py --port /dev/cu.usbserial-0001:A1 \
 
 Writes `data/<anchor>_<timestamp>.csv` with two host columns prepended
 (`host_iso`, `host_ns`) and prints per-anchor line rates every 5 s.
+
+#### For windows, use powershell. Make sure you have python and pip installed.
+```sh
+cd Thesis-2026
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+cd firmware/tools
+pip install -r requirements.txt # if this doesn't work use the manual approach below
+.\.venv\Scripts\python.exe .\firmware\tools\gateway_logger.py --port COM9:A1 
+```
+
+#### Manual approach for installing `pyserial` package from the root directory.
+ ```sh
+ .\.venv\Scripts\python.exe -m pip install pyserial
+```
 
 ## Verification checklist
 

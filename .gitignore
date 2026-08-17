@@ -19,3 +19,6 @@ firmware/**/build/
 firmware/tools/data/
 
 .vscode
+
+data/
+

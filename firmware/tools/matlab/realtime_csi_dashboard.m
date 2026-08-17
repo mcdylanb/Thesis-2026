@@ -1,141 +1,104 @@
-%% Real-Time Dual-Anchor CSI Preprocessing & Visualization Engine
+%% Real-Time CSV-Tailing CSI Dashboard (Anchor A1)
 clear; clc; close all;
 
 % --- CONFIGURATION PARAMETERS ---
-windowSize = 150;       % Number of time-history packets to display on screen
+dataFolder = '../../../data';   
+windowSize = 150;       % Number of time-history packets to display
 numSubcarriers = 64;    % Standard expected subcarriers from your ESP32
 smoothingSpan = 9;      % Moving average span for live noise reduction filter
 
-% --- INITIALIZE ROLLING DATA BUFFERS ---
-% Pre-allocating matrices ensures high frame rates without stuttering
+% --- 1. FIND THE LATEST CSV FILE ---
+% Look for all files starting with 'A1_' in the data folder
+files = dir(fullfile(dataFolder, 'A1_*.csv'));
+if isempty(files)
+    error('No A1 CSV files found in the "%s" folder. Run your Python script first!', dataFolder);
+end
+
+% Sort by date and pick the newest one
+[~, idx] = max([files.datenum]);
+latestFile = fullfile(dataFolder, files(idx).name);
+fprintf('Tailing Live Data From: %s\n', latestFile);
+
+% --- 2. INITIALIZE ROLLING DATA BUFFERS ---
 buffer_A1_raw  = zeros(windowSize, numSubcarriers);
 buffer_A1_filt = zeros(windowSize, numSubcarriers);
-buffer_A2_raw  = zeros(windowSize, numSubcarriers);
-buffer_A2_filt = zeros(windowSize, numSubcarriers);
 
-% --- SETUP LIVE PLOTS (PRE-ALLOCATION) ---
-fig = figure('Color', [1 1 1], 'Position', [100, 50, 1400, 850], 'Name', 'Live CSI Engine Pipeline');
+% --- 3. SETUP LIVE PLOTS ---
+fig = figure('Color', [1 1 1], 'Position', [100, 100, 1000, 800], 'Name', 'Live CSI CSV Tailer');
 
-% Subplot 1: Anchor 1 Raw Stream
-subplot(2,2,1);
+subplot(2,1,1);
 hHeat_A1_raw = imagesc(1:windowSize, 1:numSubcarriers, buffer_A1_raw');
-colormap(gca, 'jet'); clim([0 60]); title('Anchor A1: RAW CSI Stream (Step 1)');
+colormap(gca, 'jet'); clim([0 60]); title('Anchor A1: RAW CSI Stream (Tailing CSV)');
 xlabel('Rolling Packet Window'); ylabel('Subcarrier'); set(gca, 'YDir', 'normal');
 
-% Subplot 2: Anchor 1 Preprocessed Stream
-subplot(2,2,3);
+subplot(2,1,2);
 hHeat_A1_filt = imagesc(1:windowSize, 1:numSubcarriers, buffer_A1_filt');
 colormap(gca, 'jet'); clim([0 60]); title('Anchor A1: CLEANED CSI (Dropped Zeros + Smoothed)');
 xlabel('Rolling Packet Window'); ylabel('Subcarrier'); set(gca, 'YDir', 'normal');
 
-% Subplot 3: Anchor 2 Raw Stream
-subplot(2,2,2);
-hHeat_A2_raw = imagesc(1:windowSize, 1:numSubcarriers, buffer_A2_raw');
-colormap(gca, 'jet'); clim([0 60]); title('Anchor A2: RAW CSI Stream (Step 1)');
-xlabel('Rolling Packet Window'); ylabel('Subcarrier'); set(gca, 'YDir', 'normal');
-
-% Subplot 4: Anchor 2 Preprocessed Stream
-subplot(2,2,4);
-hHeat_A2_filt = imagesc(1:windowSize, 1:numSubcarriers, buffer_A2_filt');
-colormap(gca, 'jet'); clim([0 60]); title('Anchor A2: CLEANED CSI (Dropped Zeros + Smoothed)');
-xlabel('Rolling Packet Window'); ylabel('Subcarrier'); set(gca, 'YDir', 'normal');
-
-%% --- OPEN NETWORKING UDP PORTS ---
-fprintf('Opening network sockets... Make sure Python script is ready.\n');
-try
-    sock_A1 = udpport("LocalPort", 6001, "Timeout", 0.001);
-    sock_A2 = udpport("LocalPort", 6002, "Timeout", 0.001);
-catch ME
-    error('Could not open ports. Make sure no other instances of MATLAB are running.');
+% --- 4. OPEN FILE FOR CONTINUOUS READING ---
+% Using 'r' (read) allows Python to keep writing to it simultaneously
+fid = fopen(latestFile, 'r');
+if fid == -1
+    error('Could not open the CSV file. Ensure it is not locked by Excel.');
 end
+cleanupObj = onCleanup(@() fclose(fid)); % Ensure file closes if script stops
 
-cleanupObj = onCleanup(@()clear(['sock_A1', 'sock_A2']));
-fprintf('Engine initialized. Listening live for ESP32 streams... Press Ctrl+C in command window to end.\n');
+fprintf('Engine initialized. Waiting for new lines in CSV... Press Ctrl+C to end.\n');
 
-%% --- MAIN EXECUTION PIPELINE LOOP ---
+% --- 5. MAIN EXECUTION PIPELINE LOOP ---
+newDataAdded = false; % Track if we need to redraw
+
 while ishandle(fig)
     
-    % --- PROCESS ANCHOR A1 DATA ---
-    if sock_A1.NumBytesAvailable > 0
-        dataStr = read(sock_A1, sock_A1.NumBytesAvailable, "string");
-        % Extract the last complete packet in the socket queue
-        lines = splitLines(dataStr);
-        validLine = "";
-        for idx = length(lines):-1:1
-            if contains(lines(idx), "CSI,A1,")
-                validLine = lines(idx);
-                break;
-            end
+    % Attempt to read the next line
+    lineStr = fgetl(fid);
+    
+    % If fgetl returns a number (like -1), we hit the current End of File
+    if ~ischar(lineStr)
+        
+        % THE MAGIC TRICK: Clear the MATLAB EOF flag!
+        % 'cof' means Current Position. Moving 0 bytes clears the EOF status 
+        % so fgetl will actually try reading again on the next loop.
+        fseek(fid, 0, 'cof'); 
+        
+        % If we gathered new data before hitting EOF, update the graph now
+        if newDataAdded
+            tempFilt = movmean(buffer_A1_filt, smoothingSpan, 1);
+            
+            set(hHeat_A1_raw, 'CData', buffer_A1_raw');
+            set(hHeat_A1_filt, 'CData', tempFilt');
+            drawnow limitrate;
+            
+            newDataAdded = false; % Reset flag until we read more lines
         end
         
-        if validLine ~= ""
-            % Parse components
-            payload = extractAfter(validLine, "A1|");
-            parts = split(payload, ",");
-            if length(parts) >= 11
-                rawAmplitudes = str2double(parts(11:end))';
-                
-                if length(rawAmplitudes) == numSubcarriers
-                    % Shift buffer down and push raw data
-                    buffer_A1_raw = [buffer_A1_raw(2:end, :); rawAmplitudes];
-                    
-                    % REALTIME PREPROCESSING PIPELINE
-                    cleanedAmplitudes = rawAmplitudes;
-                    % Step A: Interpolate/Drop out your Null Subcarrier Zeros (indices 28-38)
-                    nullIdxs = (cleanedAmplitudes == 0);
-                    if any(nullIdxs)
-                        cleanedAmplitudes(nullIdxs) = mean(cleanedAmplitudes(~nullIdxs)); 
-                    end
-                    buffer_A1_filt = [buffer_A1_filt(2:end, :); cleanedAmplitudes];
-                    
-                    % Step B: Apply moving window filter across time dimension
-                    buffer_A1_filt = movmean(buffer_A1_filt, smoothingSpan, 1);
-                    
-                    % Update Graph Graphics Objects Directly (Saves massive processing time)
-                    set(hHeat_A1_raw, 'CData', buffer_A1_raw');
-                    set(hHeat_A1_filt, 'CData', buffer_A1_filt');
-                end
-            end
-        end
+        % Pause briefly to let Python write new data and prevent CPU maxing
+        pause(0.05); 
+        continue; % Skip the parsing below and go back to the top of the loop
     end
     
-    % --- PROCESS ANCHOR A2 DATA ---
-    if sock_A2.NumBytesAvailable > 0
-        dataStr = read(sock_A2, sock_A2.NumBytesAvailable, "string");
-        lines = splitLines(dataStr);
-        validLine = "";
-        for idx = length(lines):-1:1
-            if contains(lines(idx), "CSI,A2,")
-                validLine = lines(idx);
-                break;
-            end
-        end
+    % --- If we made it here, we successfully read a new line! ---
+    if contains(lineStr, "CSI,A1,")
+        lineStr = strrep(lineStr, '"', '');
+        parts = split(lineStr, ",");
         
-        if validLine ~= ""
-            payload = extractAfter(validLine, "A2|");
-            parts = split(payload, ",");
-            if length(parts) >= 11
-                rawAmplitudes = str2double(parts(11:end))';
-                
-                if length(rawAmplitudes) == numSubcarriers
-                    buffer_A2_raw = [buffer_A2_raw(2:end, :); rawAmplitudes];
-                    
-                    % REALTIME PREPROCESSING PIPELINE
-                    cleanedAmplitudes = rawAmplitudes;
-                    nullIdxs = (cleanedAmplitudes == 0);
-                    if any(nullIdxs)
-                        cleanedAmplitudes(nullIdxs) = mean(cleanedAmplitudes(~nullIdxs));
-                    end
-                    buffer_A2_filt = [buffer_A2_filt(2:end, :); cleanedAmplitudes];
-                    buffer_A2_filt = movmean(buffer_A2_filt, smoothingSpan, 1);
-                    
-                    set(hHeat_A2_raw, 'CData', buffer_A2_raw');
-                    set(hHeat_A2_filt, 'CData', buffer_A2_filt');
-                end
+        % Robust Parsing: Grab the absolute last 64 items
+        if length(parts) > numSubcarriers
+            rawAmplitudes = str2double(parts(end-numSubcarriers+1 : end))';
+            
+            % Push new data into the raw buffer
+            buffer_A1_raw = [buffer_A1_raw(2:end, :); rawAmplitudes];
+            
+            % Process the filtered buffer
+            cleanedAmplitudes = rawAmplitudes;
+            nullIdxs = (cleanedAmplitudes == 0);
+            if any(nullIdxs)
+                cleanedAmplitudes(nullIdxs) = mean(cleanedAmplitudes(~nullIdxs)); 
             end
+            
+            buffer_A1_filt = [buffer_A1_filt(2:end, :); cleanedAmplitudes];
+            newDataAdded = true; % Flag that we have new data to draw
         end
     end
-    
-    % Flush graphics commands to the monitor efficiently
-    drawnow limitrate;
 end

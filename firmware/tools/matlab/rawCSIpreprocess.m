@@ -106,3 +106,4 @@ title('Distribution of Active CSI Amplitudes', 'FontSize', 11);
 xlabel('Amplitude Value');
 ylabel('Frequency');
 grid on;
+

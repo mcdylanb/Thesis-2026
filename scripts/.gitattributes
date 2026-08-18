@@ -1,0 +1,3 @@
+# git will silently enforce unix line endings on every .sh file to prevent sed command on rsync_data_transfer.sh script
+*.sh text eol=lf
+

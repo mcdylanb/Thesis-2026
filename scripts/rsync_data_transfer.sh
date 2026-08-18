@@ -3,8 +3,8 @@
 # Define connection variables
 PI_USER="pi-b-thesis"
 PI_IP="192.168.50.190"
-REMOTE_DIR="test_data/"
-LOCAL_DIR="test_data/"
+REMOTE_DIR="data/"
+LOCAL_DIR="data/"
 
 # Define the delay between syncs (in seconds)
 # 2 seconds is a good balance for near real-time updates without spamming SSH connections

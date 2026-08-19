@@ -1,4 +1,3 @@
-// code for esp-now
 #include <esp_now.h>
 #include <WiFi.h>
 #include <math.h>
@@ -6,7 +5,6 @@
 #define CSI_BUF_MAX 128
 #define LINE_MAX 800
 
-// received parameters for adjusting byte limit
 typedef struct __attribute__((packed)) {
   char     anchor_id[3]; 
   uint32_t seq;
@@ -19,7 +17,6 @@ typedef struct __attribute__((packed)) {
   int8_t   buf[CSI_BUF_MAX];
 } esp_now_csi_t;
 
-// string formatter
 void format_and_print(const esp_now_csi_t *rec) {
   char line[LINE_MAX];
   
@@ -41,11 +38,9 @@ void format_and_print(const esp_now_csi_t *rec) {
     n += snprintf(line + n, sizeof(line) - n, ",%d", amp);
   }
   
-  // Print to Raspberry Pi via USB Serial
   Serial.println(line);
 }
 
-// Callback for incoming ESP-NOW data
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
   if (len == sizeof(esp_now_csi_t)) {
     esp_now_csi_t *rec = (esp_now_csi_t *)incomingData;
@@ -53,8 +48,10 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
   }
 }
 
+unsigned long last_heartbeat = 0;
+
 void setup() {
-  Serial.begin(921600); 
+  Serial.begin(921600);
   WiFi.mode(WIFI_STA);
   
   if (esp_now_init() != ESP_OK) {
@@ -65,5 +62,11 @@ void setup() {
   esp_now_register_recv_cb(OnDataRecv);
 }
 
-void loop() {}
+void loop() {
+  // Emit a heartbeat pulse every 2 seconds to signal active serial connection
+  if (millis() - last_heartbeat >= 2000) {
+    last_heartbeat = millis();
+    Serial.printf("HEARTBEAT,%lu\n", last_heartbeat);
+  }
+}
 

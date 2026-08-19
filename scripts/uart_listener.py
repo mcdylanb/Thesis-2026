@@ -1,59 +1,131 @@
+#!/usr/bin/env python3
+"""Single-port ESP-NOW Gateway logger with active Heartbeat monitoring and real-time packet alerts."""
+
+import argparse
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+import socket
+
 import serial
-import os
-from datetime import datetime
 
-# Ensure the data directory exists
-save_dir = os.path.expanduser("~/Desktop/Thesis-2026/data")
-os.makedirs(save_dir, exist_ok=True)
+VALID_PREFIXES = ("CSI,", "STAT,", "HEARTBEAT,")
 
-SERIAL_PORT = '/dev/ttyUSB0' # Update if your Pi uses a different port
-BAUD_RATE = 921600
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--port", type=str, default="/dev/ttyUSB0", help="Gateway serial port")
+    ap.add_argument("--baud", type=int, default=921600)
+    ap.add_argument("--outdir", type=Path, default=Path("data"))
+    args = ap.parse_args()
 
-# Dictionary to manage multiple file streams dynamically
-open_files = {}
+    args.outdir.mkdir(parents=True, exist_ok=True)
 
-try:
-    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    ser.flush()
+    try:
+        ser = serial.Serial(args.port, args.baud, timeout=1)
+    except serial.SerialException as exc:
+        print(f"[Gateway] Cannot open {args.port}: {exc}", file=sys.stderr)
+        return
 
-    print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud...")
-    print(f"Waiting for CSI data... Files will be auto-generated in: {save_dir}")
+    print(f"==================================================")
+    print(f"[Gateway] Connected to {args.port} at {args.baud} baud")
+    print(f"[Gateway] Saving output files into: {args.outdir.absolute()}")
+    print(f"==================================================\n")
 
-    while True:
-        if ser.in_waiting > 0:
-            # Read line, decode, and strip whitespace
-            line = ser.readline().decode('utf-8', errors='replace').rstrip()
-            
-            # Filter strictly for CSI data (drops headers, STAT, and INFO lines)
+    active_files = {}   
+    udp_sockets = {}    
+    anchor_lines = {}   
+    anchor_skipped = 0  
+    prev_counts = {}    
+
+    session_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    sock_global = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    try:
+        last_print = time.time()
+        while True:
+            raw = ser.readline()
+            if not raw:
+                continue
+                
+            line = raw.decode("ascii", errors="replace").strip()
+            if not line.startswith(VALID_PREFIXES):
+                anchor_skipped += 1
+                continue
+
+            # --- HEARTBEAT HANDLER ---
+            if line.startswith("HEARTBEAT,"):
+                uptime_ms = line.split(",")[1]
+                # Print a subtle pulse in the terminal to show serial link is active
+                print(f"[Heartbeat] Pi <-> Gateway USB active (Uptime: {int(uptime_ms)//1000}s)", end="\r", flush=True)
+                continue
+
+            # --- CSI / STAT HANDLER ---
+            parts = line.split(',')
+            if len(parts) < 2:
+                continue
+            anchor = parts[1]
+
+            host_iso = datetime.now(timezone.utc).isoformat()
+            host_ns = time.perf_counter_ns()
+
+            # Initialize anchor file on first arrival
+            if anchor not in active_files:
+                outfile = args.outdir / f"{anchor}_{session_stamp}.csv"
+                f = open(outfile, "w", buffering=1)
+                f.write("host_iso,host_ns,line\n")
+                active_files[anchor] = f
+                anchor_lines[anchor] = 0
+                prev_counts[anchor] = 0
+
+                try:
+                    anchor_num = int(''.join(filter(str.isdigit, anchor)))
+                    udp_port = 6000 + anchor_num
+                except ValueError:
+                    udp_port = 6001
+                udp_sockets[anchor] = udp_port
+
+                print(f"\n\n[WIRELESS LINK ESTABLISHED] Discovered Anchor [{anchor}] -> {outfile.name} | UDP {udp_port}\n")
+
+            # Save line to CSV
+            active_files[anchor].write(f'{host_iso},{host_ns},"{line}"\n')
+            anchor_lines[anchor] += 1
+
+            # Print real-time wireless receipt for CSI packets
             if line.startswith("CSI,"):
-                parts = line.split(',')
-                if len(parts) > 2:
-                    anchor_id = parts[1]  # Extracts 'A1', 'A2', etc.
-                    
-                    # If this is the first packet from this anchor, create its file
-                    if anchor_id not in open_files:
-                        # Generate the timestamp in YYYYMMDD_HHMMSS format
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        
-                        # Build the exact filename: e.g., A1_20260717_030353.csv
-                        filename = os.path.join(save_dir, f"{anchor_id}_{timestamp}.csv")
-                        
-                        # Open the file and store the handle
-                        open_files[anchor_id] = open(filename, "a")
-                        print(f"\n[+] Created new file for {anchor_id}: {filename}")
-                    
-                    # Write the raw CSI row directly to the appropriate anchor's file
-                    f = open_files[anchor_id]
-                    f.write(f"{line}\n")
-                    f.flush() # Force write to disk so rsync can pick it up immediately
-                    
-except serial.SerialException as e:
-    print(f"Connection error: {e}")
-except KeyboardInterrupt:
-    print("\nData collection stopped by user. Closing files...")
-finally:
-    # Safely close all open files when the script is stopped
-    for f in open_files.values():
-        f.close()
-    print("Exited cleanly.")
+                seq_num = parts[2] if len(parts) > 2 else "?"
+                mac_addr = parts[3] if len(parts) > 3 else "?"
+                rssi = parts[4] if len(parts) > 4 else "?"
+                print(f"[WIRELESS RECV] Anchor {anchor} | Seq #{seq_num} | From MAC: {mac_addr} | RSSI: {rssi} dBm")
+
+            # Send via UDP to MATLAB
+            udp_payload = f"{anchor}|{line}"
+            try:
+                sock_global.sendto(udp_payload.encode('ascii'), ('127.0.0.1', udp_sockets[anchor]))
+            except Exception:
+                pass
+
+            # Summary stats every 5s
+            now = time.time()
+            if now - last_print >= 5.0:
+                status = []
+                for anc, total in anchor_lines.items():
+                    rate = (total - prev_counts[anc]) / 5.0
+                    prev_counts[anc] = total
+                    status.append(f"{anc}: {rate:.0f} pkts/s ({total} total)")
+                if status:
+                    print(f"\n--- [STAT SUMMARY] " + " | ".join(status) + f" --- \n")
+                last_print = now
+
+    except KeyboardInterrupt:
+        print("\nStopping logger. Closing all anchor files...")
+    finally:
+        ser.close()
+        sock_global.close()
+        for f in active_files.values():
+            f.close()
+        print("Exited cleanly.")
+
+if __name__ == "__main__":
+    main()
 

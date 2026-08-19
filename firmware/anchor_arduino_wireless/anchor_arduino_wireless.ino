@@ -8,7 +8,9 @@
 #define WIFI_CHANNEL     11     // sniff channel
 #define SERIAL_BAUD      921600 
 
-uint8_t gateway_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // replace with sniffer's mac address
+// Esp-Now = 3c:8a:1f:9a:66:8c
+// a1 = 3c:8a:1f:5e:ae:e4
+uint8_t gateway_mac[] = {0x3c, 0x8a, 0x1f, 0x5e, 0xae, 0xe4}; // replace with sniffer's mac address
 
 #define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
 #define QUEUE_DEPTH      64
@@ -119,4 +121,3 @@ void setup() {
 void loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
-

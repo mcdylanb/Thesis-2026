@@ -16,7 +16,7 @@ def main():
     ap.add_argument("--port", type=str, default="/dev/ttyUSB0", help="Gateway serial port (e.g., /dev/ttyUSB0 or /dev/ttyACM0)")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--outdir", type=Path, default=Path("data"))
-    ap.add_argument("--verbose", action="store_true", help="Print every received packet (Warning: may cause serial bottleneck at high rates)")
+    ap.add_argument("--verbose", action="store_true", help="Print every received packet")
     args = ap.parse_args()
 
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -25,7 +25,6 @@ def main():
         ser = serial.Serial(args.port, args.baud, timeout=1)
     except serial.SerialException as exc:
         print(f"[Gateway] Cannot open {args.port}: {exc}", file=sys.stderr)
-        print("[Gateway] Tip: Check if port is /dev/ttyACM0 or verify user permissions with 'sudo usermod -a -G dialout $USER'", file=sys.stderr)
         return
 
     print("==================================================")
@@ -63,10 +62,11 @@ def main():
                 continue
 
             # --- CSI / STAT HANDLER ---
-            parts = line.split(',')
-            if len(parts) < 2:
+            # Do a basic split just to get the anchor ID and MAC for printing
+            basic_parts = line.split(',', 4)
+            if len(basic_parts) < 2:
                 continue
-            anchor = parts[1]
+            anchor = basic_parts[1]
 
             host_iso = datetime.now(timezone.utc).isoformat()
             host_ns = time.perf_counter_ns()
@@ -75,8 +75,9 @@ def main():
             if anchor not in active_files:
                 outfile = args.outdir / f"{anchor}_{session_stamp}.csv"
                 f = open(outfile, "w", buffering=1)
-                # Raw unquoted header matching unquoted row write
-                f.write("host_iso,host_ns,type,anchor_id,seq,mac,rssi,channel,len,csi_payload...\n")
+                
+                # Header now accurately reflects 'csi_payload' as a single column
+                f.write("host_iso,host_ns,type,anchor_id,seq,mac,rssi,channel,len,csi_payload\n")
                 active_files[anchor] = f
                 anchor_lines[anchor] = 0
                 prev_counts[anchor] = 0
@@ -90,18 +91,34 @@ def main():
 
                 print(f"\n[WIRELESS LINK ESTABLISHED] Discovered Anchor [{anchor}] -> {outfile.name} | UDP {udp_port}\n")
 
-            # Save line to CSV without quotes so commas separate into standard columns
-            active_files[anchor].write(f"{host_iso},{host_ns},{line}\n")
+            # --- SINGLE CELL FORMATTING LOGIC ---
+            if line.startswith("CSI,"):
+                # Split only 7 times. Everything after the 7th comma stays grouped in parts[7]
+                parts = line.split(',', 7)
+                if len(parts) == 8:
+                    meta = ",".join(parts[:7])
+                    payload = parts[7]
+                    
+                    # Write metadata normally, but wrap the payload in double quotes
+                    csv_line = f'{host_iso},{host_ns},{meta},"{payload}"\n'
+                else:
+                    csv_line = f'{host_iso},{host_ns},{line}\n'
+            else:
+                # Handle non-CSI lines normally
+                csv_line = f'{host_iso},{host_ns},{line}\n'
+
+            # Save line to CSV
+            active_files[anchor].write(csv_line)
             anchor_lines[anchor] += 1
 
             # Verbose mode packet output
             if args.verbose and line.startswith("CSI,"):
-                seq_num = parts[2] if len(parts) > 2 else "?"
-                mac_addr = parts[3] if len(parts) > 3 else "?"
-                rssi = parts[4] if len(parts) > 4 else "?"
+                seq_num = basic_parts[2] if len(basic_parts) > 2 else "?"
+                mac_addr = basic_parts[3] if len(basic_parts) > 3 else "?"
+                rssi = basic_parts[4] if len(basic_parts) > 4 else "?"
                 print(f"[WIRELESS RECV] Anchor {anchor} | Seq #{seq_num} | From MAC: {mac_addr} | RSSI: {rssi} dBm")
 
-            # Send via UDP to MATLAB
+            # Send via UDP to MATLAB (Leaving this as the raw line so MATLAB logic doesn't break)
             udp_payload = f"{anchor}|{line}"
             try:
                 sock_global.sendto(udp_payload.encode('ascii'), ('127.0.0.1', udp_sockets[anchor]))

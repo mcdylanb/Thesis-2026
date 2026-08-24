@@ -15,11 +15,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=str, default="/dev/ttyUSB0", help="Gateway serial port (e.g., /dev/ttyUSB0 or /dev/ttyACM0)")
     ap.add_argument("--baud", type=int, default=921600)
-    ap.add_argument("--outdir", type=Path, default=Path("data"))
+    ap.add_argument("--outdir", type=Path, default=Path("../data"))
     ap.add_argument("--verbose", action="store_true", help="Print every received packet")
     args = ap.parse_args()
 
-    args.outdir.mkdir(parents=True, exist_ok=True)
+    # resolve() converts the relative path to an absolute path for cleaner terminal output
+    outdir_path = args.outdir.resolve()
+    outdir_path.mkdir(parents=True, exist_ok=True)
 
     try:
         ser = serial.Serial(args.port, args.baud, timeout=1)
@@ -29,7 +31,7 @@ def main():
 
     print("==================================================")
     print(f"[Gateway] Connected to {args.port} at {args.baud} baud")
-    print(f"[Gateway] Saving output files into: {args.outdir.absolute()}")
+    print(f"[Gateway] Saving output files into: {outdir_path}")
     print("==================================================\n")
 
     active_files = {}   
@@ -73,7 +75,7 @@ def main():
 
             # Initialize anchor file on first arrival
             if anchor not in active_files:
-                outfile = args.outdir / f"{anchor}_{session_stamp}.csv"
+                outfile = outdir_path / f"{anchor}_{session_stamp}.csv"
                 f = open(outfile, "w", buffering=1)
                 
                 # Header now accurately reflects 'csi_payload' as a single column

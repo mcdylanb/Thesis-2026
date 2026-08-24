@@ -10,7 +10,7 @@
 
 // Esp-Now = 3c:8a:1f:9a:66:8c
 // a1 = 3c:8a:1f:5e:ae:e4
-uint8_t gateway_mac[] = {0x3c, 0x8a, 0x1f, 0x5e, 0xae, 0xe4}; // replace with sniffer's mac address
+uint8_t gateway_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0x8c}; // replace with esp-now's mac address
 
 #define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
 #define QUEUE_DEPTH      64
@@ -121,3 +121,4 @@ void setup() {
 void loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
+

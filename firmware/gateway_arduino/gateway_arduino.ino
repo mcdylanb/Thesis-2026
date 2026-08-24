@@ -5,6 +5,14 @@
 #define CSI_BUF_MAX 128
 #define LINE_MAX 800
 
+// --- LED Config ---
+#define LED_PIN 2
+const int LED_TIMEOUT_MS = 50; // How long the LED stays on per packet
+
+// --- Timing Variables ---
+unsigned long last_packet_time = 0;
+unsigned long last_heartbeat = 0;
+
 typedef struct __attribute__((packed)) {
   char     anchor_id[3]; 
   uint32_t seq;
@@ -41,17 +49,26 @@ void format_and_print(const esp_now_csi_t *rec) {
   Serial.println(line);
 }
 
+// Callback for incoming ESP-NOW data
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
   if (len == sizeof(esp_now_csi_t)) {
+    // 1. Turn the LED ON and record the exact timestamp it happened
+    digitalWrite(LED_PIN, HIGH);
+    last_packet_time = millis();
+    
+    // 2. Process the incoming packet
     esp_now_csi_t *rec = (esp_now_csi_t *)incomingData;
     format_and_print(rec);
   }
 }
 
-unsigned long last_heartbeat = 0;
-
 void setup() {
   Serial.begin(921600);
+  
+  // Initialize the LED pin as an output and ensure it is OFF to start
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
   WiFi.mode(WIFI_STA);
   
   if (esp_now_init() != ESP_OK) {
@@ -63,7 +80,13 @@ void setup() {
 }
 
 void loop() {
-  // Emit a heartbeat pulse every 2 seconds to signal active serial connection
+  // 1. LED Auto-Turnoff mechanism (Non-blocking)
+  // If 50 milliseconds have passed since the last packet arrived, turn the LED off.
+  if (millis() - last_packet_time > LED_TIMEOUT_MS) {
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  // 2. Emit a heartbeat pulse every 2 seconds to signal active serial connection
   if (millis() - last_heartbeat >= 2000) {
     last_heartbeat = millis();
     Serial.printf("HEARTBEAT,%lu\n", last_heartbeat);

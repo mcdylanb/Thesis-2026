@@ -10,7 +10,7 @@
 
 // Esp-Now = 3c:8a:1f:9a:66:8c
 // a1 = 3c:8a:1f:5e:ae:e4
-uint8_t gateway_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0x8c}; // replace with esp-now's mac address
+uint8_t relay_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0x8c}; // replace with the Relay's ESP-NOW MAC address
 
 #define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
 #define QUEUE_DEPTH      64
@@ -64,7 +64,7 @@ static void writer_task(void *arg) {
   for (;;) {
     if (xQueueReceive(s_queue, &rec, pdMS_TO_TICKS(200)) == pdTRUE) {
       // Blast the binary struct over ESP-NOW
-      esp_now_send(gateway_mac, (uint8_t *) &rec, sizeof(esp_now_csi_t));
+      esp_now_send(relay_mac, (uint8_t *) &rec, sizeof(esp_now_csi_t));
     }
   }
 }
@@ -82,9 +82,9 @@ void setup() {
     return;
   }
 
-  // Register Gateway Peer
+  // Register Relay Peer
   esp_now_peer_info_t peerInfo = {};
-  memcpy(peerInfo.peer_addr, gateway_mac, 6);
+  memcpy(peerInfo.peer_addr, relay_mac, 6);
   peerInfo.channel = WIFI_CHANNEL;  
   peerInfo.encrypt = false;
   esp_now_add_peer(&peerInfo);

@@ -1,11 +1,14 @@
-main.pdf
-main.log
-main.fls
-main.aux
-main.bbl
-main.blg
-main.fdb_latexmk
-main.synctex.gz
+# LaTeX build artifacts (thesis/)
+thesis/main.pdf
+thesis/*.log
+thesis/*.fls
+thesis/*.aux
+thesis/*.bbl
+thesis/*.blg
+thesis/*.fdb_latexmk
+thesis/*.synctex.gz
+thesis/*.out
+thesis/*.toc
 
 # Python
 .venv/

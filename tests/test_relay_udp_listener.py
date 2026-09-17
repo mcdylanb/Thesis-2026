@@ -143,3 +143,28 @@ def test_truncated_csi_line_with_no_anchor_field_is_skipped_not_raised():
     assert anchor_files == {}
     assert stats.skipped == 1
     assert stats.lines == 0
+
+
+def test_capture_row_is_tailable_by_the_matlab_dashboard():
+    """firmware/tools/matlab/realtime_csi_dashboard.m tails the newest
+    data/A1_*.csv: it keeps lines containing ``CSI,A1,``, strips double
+    quotes, splits on commas and reads the LAST 64 fields as amplitudes.
+    The wireless path must keep writing rows that survive that recipe."""
+    amps = [i for i in range(64)]
+    line = make_csi_line(anchor="A1", seq=7, values=amps)
+    anchor_files: dict[str, io.StringIO] = {}
+    stats = relay_udp_listener.ListenerStats()
+
+    relay_udp_listener.handle_line(
+        anchor_files,
+        line,
+        host_iso="2026-09-10T00:00:05+00:00",
+        host_ns=6000,
+        stats=stats,
+        open_anchor_file=lambda anchor: io.StringIO(),
+    )
+
+    row = anchor_files["A1"].getvalue().splitlines()[-1]
+    assert "CSI,A1," in row
+    fields = row.replace('"', "").split(",")
+    assert [float(x) for x in fields[-64:]] == [float(a) for a in amps]

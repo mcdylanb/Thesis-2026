@@ -1,28 +1,55 @@
-# Anchor Firmware — Passive RSSI + CSI Sniffer (ESP32)
+# Firmware — Anchors and Relay (ESP32)
 
-Firmware for the thesis anchors (A1–A4): each ESP32 NodeMCU passively sniffs
-802.11 packets on a fixed 2.4 GHz channel and emits one CSV line per packet
-containing the tuple required by the methodology chapter:
+Vocabulary follows the root [`CONTEXT.md`](../CONTEXT.md): **Anchors** sniff,
+the **Relay** aggregates, the **Gateway** (laptop) captures and processes.
+
+## The wireless chain (what the team flashes today)
+
+```
+Anchor A1..A4 ──ESP-NOW──▶ Relay ──WiFi UDP (trial network)──▶ Gateway laptop
+```
+
+| Board | Sketch | Per-board edit |
+|---|---|---|
+| Anchor | `anchor_arduino_wireless/anchor_arduino_wireless.ino` | `ANCHOR_ID`, `WIFI_CHANNEL`, `relay_mac` |
+| Relay  | `relay/relay.ino` | `WIFI_SSID`, `WIFI_PASSWORD`, `GATEWAY_IP`, `GATEWAY_PORT` |
+
+The Relay joins the trial network, which locks its radio to that network's
+channel — every Anchor's `WIFI_CHANNEL` must match it for ESP-NOW to work.
+The Relay re-emits each Anchor record as the same `CSI,...` / `STAT,...`
+ASCII line over USB serial **and** unicast UDP to `GATEWAY_IP:GATEWAY_PORT`.
+On the Gateway, `make listen` (UDP) or `make capture` (serial) lands them as
+Captures — see the root `README.md`.
+
+Flash both with Arduino IDE (**ESP32 Dev Module**, esp32 core 3.x, upload
+speed 921600); board-support setup is under "Arduino IDE version" below.
+
+## Anchor firmware — passive RSSI + CSI sniffer
+
+Each ESP32 NodeMCU Anchor (A1–A4) passively sniffs 802.11 frames on a fixed
+2.4 GHz channel and emits one Record per frame containing the tuple required
+by the methodology chapter:
 
 ```
 (source MAC, timestamp, RSSI, CSI amplitudes, anchor id)
 ```
 
-Data is streamed over **USB serial (default, 921600 baud)** and optionally
-mirrored over **WiFi UDP** to the laptop gateway. All localization processing
-(windowing, RSSI smoothing, CSI normalization, D-CFR, MDN, particle filter)
-happens on the gateway — the firmware is deliberately dumb.
+All localization processing (windowing, RSSI smoothing, CSI normalization,
+D-CFR, MDN, particle filter) happens on the Gateway — the firmware is
+deliberately dumb.
 
-Two interchangeable firmware implementations are provided — **pick one**;
-they emit the identical line format and the gateway logger works with either:
+Three Anchor implementations emit the identical line format:
 
+- `anchor_arduino_wireless/` — Arduino sketch, sends to the Relay over ESP-NOW (**live path**)
+- `anchor_arduino/` — Arduino sketch, USB serial straight to the Gateway (original wired path)
 - `anchor/` — ESP-IDF v5.4 project (native toolchain, menuconfig-based config)
-- `anchor_arduino/` — single-sketch Arduino IDE version (easiest to flash)
+
+See `docs/INVENTORY.md` at the repo root for the status of every file here.
 
 ## Requirements
 
 - Classic **ESP32** NodeMCU dev boards (CP2102 or CH340 USB-UART)
-- Python 3.9+ with `pyserial` for the gateway logger (`pip install -r tools/requirements.txt`)
+- Python for the Gateway side: `make setup` at the repo root (installs `pyserial` via the `capture` extra)
 - For `anchor/`: **ESP-IDF v5.4** (`git clone -b release/v5.4 https://github.com/espressif/esp-idf`)
 - For `anchor_arduino/`: **Arduino IDE** with the **arduino-esp32 core 3.x**
 
@@ -145,7 +172,10 @@ coincide. Serial output stays active in UDP mode. Test with:
 nc -ul 5555
 ```
 
-## Gateway logger
+## Gateway logger (legacy, wired Anchors)
+
+> Superseded by `make listen` / `make capture` at the repo root; `pip install
+> -r requirements.txt` still works but `pyproject.toml` is the source of truth.
 
 ```sh
 cd Thesis-2026

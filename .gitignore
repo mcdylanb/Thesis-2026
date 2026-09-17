@@ -22,3 +22,8 @@ firmware/tools/data/
 
 data/*
 
+
+# uv / make outputs
+out/
+synth_data/
+.pytest_cache/

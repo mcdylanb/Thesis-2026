@@ -1,1 +1,4 @@
+# Superseded: dependencies live in pyproject.toml at the repo root.
+# Run `make setup` (or `uv sync --extra dev --extra capture`) instead.
+# Kept so `pip install -r firmware/tools/requirements.txt` still works.
 pyserial>=3.5

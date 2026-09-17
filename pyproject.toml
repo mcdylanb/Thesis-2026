@@ -10,6 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 parquet = ["pandas>=1.4", "pyarrow>=8"]
+capture = ["pyserial>=3.5"]   # serial-link listeners under scripts/
 dev = ["pytest>=7"]
 
 [build-system]
@@ -21,3 +22,4 @@ packages = ["gateway"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]   # tests import tests.conftest helpers

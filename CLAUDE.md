@@ -11,3 +11,7 @@ The five canonical triage labels are used as-is (`needs-triage`, `needs-info`, `
 ### Domain docs
 
 Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Tooling
+
+Tool install (`uv`, `gh`, `make`, `latexmk`, Arduino IDE) and the Makefile targets are in `README.md`. Run `make test` before committing Python changes.

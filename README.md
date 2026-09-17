@@ -10,7 +10,7 @@ laptop turns the stream into localization features. Terms are defined in
  Anchor A2 ─┤ ESP-NOW            WiFi UDP (trial network)
  Anchor A3 ─┼──────────▶ Relay ──────────────────────────▶ Gateway laptop
  Anchor A4 ─┘                                               ├─ make listen   → data/<Anchor>_<ts>.csv  (Captures)
-                                                            ├─ MATLAB dashboard tails the newest Capture
+                                                            ├─ make dashboard  → live CSI/RSSI plots of the newest Capture
                                                             └─ make preprocess → windows + D-CFR features
 ```
 
@@ -19,7 +19,7 @@ laptop turns the stream into localization features. Terms are defined in
 | Path | What |
 |---|---|
 | `firmware/` | Anchor and Relay sketches (Arduino IDE). [`firmware/README.md`](firmware/README.md) has the line format and per-board config. |
-| `scripts/` | Gateway listeners (`make listen`, `make capture`). [`scripts/README.md`](scripts/README.md). |
+| `scripts/` | Gateway listeners (`make listen`, `make capture`) and the live dashboard (`make dashboard`). [`scripts/README.md`](scripts/README.md). |
 | `gateway/` | Python preprocessing package: parse Captures → windows → RSSI smoothing, CSI normalization, D-CFR. |
 | `tests/` | pytest suite for `gateway/` and the UDP listener. |
 | `thesis/` | LaTeX manuscript. `make thesis`. |
@@ -38,12 +38,11 @@ laptop turns the stream into localization features. Terms are defined in
 | `make` | comes with Xcode CLT (`xcode-select --install`) | use the `uv run` commands in the table below; `make` itself only exists inside WSL, which cannot see USB serial ports |
 | `latexmk` (thesis) | MacTeX or BasicTeX | MiKTeX or TeX Live |
 | Arduino IDE + esp32 core 3.x | [arduino.cc](https://www.arduino.cc/en/software), then Boards Manager URL `https://espressif.github.io/arduino-esp32/package_esp32_index.json` → install **esp32 by Espressif Systems** | same |
-| MATLAB (live dashboard, optional) | campus licence | same |
 
 Then, from the repo root:
 
 ```sh
-make setup        # uv sync --extra dev --extra capture
+make setup        # uv sync --extra dev --extra capture --extra viz
 make test         # full pytest suite should pass
 ```
 
@@ -76,8 +75,11 @@ can only be held by one program.
 4. `make listen` — you should see `new anchor A1 -> data/A1_<ts>.csv` and a
    `lines=… heartbeats=…` counter every 5 s. No lines? The Anchors are on the
    wrong channel or nothing is transmitting OFDM frames on it.
-5. Live view: open `firmware/tools/matlab/realtime_csi_dashboard.m` in MATLAB
-   and run it — it tails the newest `data/A1_*.csv`.
+5. Live view: `make dashboard` (matplotlib) tails the newest `data/A1_*.csv` —
+   CSI heatmaps, RSSI trace and a frames-per-source-MAC bar so you can see
+   *who* the Anchor is hearing. `--exclude-mac <Relay MAC>` hides the Relay's
+   own traffic. The MATLAB `firmware/tools/matlab/realtime_csi_dashboard.m` is
+   the legacy equivalent.
 
 Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial-XXXX`
 (Windows: `--port COM3`). Same Capture files.
@@ -98,9 +100,11 @@ copy `gateway/devices.example.yaml`.
 
 | `make` target | PowerShell |
 |---|---|
-| `make setup` | `uv sync --extra dev --extra capture` |
+| `make setup` | `uv sync --extra dev --extra capture --extra viz` |
 | `make test` | `uv run pytest` |
 | `make listen` | `uv run python scripts/relay_udp_listener.py --outdir data` |
+| `make dashboard` | `uv run python scripts/live_csi_dashboard.py --data data --anchor A1` |
+| `make replay FILE=data/A1_x.csv` | `uv run python scripts/live_csi_dashboard.py --file data/A1_x.csv --from-start --replay-rate 6` |
 | `make capture PORT=COM3` | `uv run python scripts/uart_listener_2.py --port COM3 --outdir data` |
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |

@@ -20,7 +20,7 @@ Vocabulary: see [`CONTEXT.md`](../CONTEXT.md).
 | `anchor_arduino/anchor_arduino.ino` | legacy | Anchor (wired). Original serial-only sketch; same line format as the ESP-IDF build. |
 | `anchor_arduino/anchor2_arduino/anchor2_arduino.ino` | needs-decision | Byte-for-byte copy of `anchor_arduino.ino` with `ANCHOR_ID "A2"` and `WIFI_CHANNEL 4`. Only the CONFIG block differs. |
 | `anchor/` (ESP-IDF project) | needs-decision | Anchor (wired), ESP-IDF v5.4 native build. Same output as the Arduino sketch; nobody on the team currently flashes it. |
-| `tools/matlab/realtime_csi_dashboard.m` | live | Live heatmap that tails the newest `data/A1_*.csv` Capture. Works with `make listen`. |
+| `tools/matlab/realtime_csi_dashboard.m` | legacy | Live heatmap that tails the newest `data/A1_*.csv` Capture. Superseded by `scripts/live_csi_dashboard.py` (`make dashboard`), which needs no MATLAB licence. |
 | `tools/matlab/singleRawCSIpreprocess.m` | needs-decision | Offline single-Capture CSI plot (file picker). |
 | `tools/matlab/multiRawCSIpreprocess.m` | needs-decision | Offline two-Capture comparison (file picker). |
 | `tools/gateway_logger.py` | legacy | Multi-port serial logger for the wired Anchor era (one `--port` per Anchor). Has an unused `127.0.0.1` UDP loopback. |
@@ -31,6 +31,7 @@ Vocabulary: see [`CONTEXT.md`](../CONTEXT.md).
 | Path | Status | Purpose |
 |---|---|---|
 | `relay_udp_listener.py` | live | `make listen`. Binds the Gateway IP/port, lands the Relay's UDP stream as per-Anchor Captures. Tested. |
+| `live_csi_dashboard.py` | live | `make dashboard`. Python port of the MATLAB dashboard plus RSSI trace and per-MAC frame counts; `--snapshot` renders a PNG. Tested. |
 | `uart_listener_2.py` | live | `make capture`. Single-port serial listener for a Relay on USB; `--verbose`, `--outdir` default `../data`. Has an unused UDP loopback. |
 | `uart_listener.py` | needs-decision | Earlier revision of `uart_listener_2.py` (no `--verbose`, `--outdir` default `data`). Otherwise the same code. |
 | `rsync_data_transfer.sh` | legacy | Pulls Captures from the Raspberry Pi over SSH. Pi retired — [ADR-0001](adr/0001-laptop-gateway-replaces-pi.md). Contains a hardcoded Pi IP/user. |

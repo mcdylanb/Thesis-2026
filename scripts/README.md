@@ -7,6 +7,15 @@ Captures under `data/`. Run them through the root `Makefile`:
 |---|---|---|
 | `make listen` | `relay_udp_listener.py` | **Wireless (primary):** Relay → WiFi UDP → this laptop |
 | `make capture PORT=…` | `uart_listener_2.py` | Serial fallback: Relay on USB |
+| `make dashboard` | `live_csi_dashboard.py` | Live plots of the newest `ANCHOR` Capture (default A1) |
+| `make replay FILE=…` | `live_csi_dashboard.py` | Same plots, playing back a finished Capture offline (no hardware) |
+
+`live_csi_dashboard.py` tails a Capture as the listener writes it: raw and
+cleaned CSI heatmaps, RSSI trace, frames per source MAC, and a status line
+with rate and sequence gaps. `--exclude-mac` hides a transmitter (the Relay's
+own UDP frames are sniffed by the Anchor); `--mac` shows only one;
+`--snapshot out/a1.png` replays a finished Capture into a PNG for the thesis.
+Needs the `viz` extra (`make setup` installs it).
 
 `uart_listener.py` is an earlier copy of `uart_listener_2.py`; see
 `docs/INVENTORY.md` for the status of every script here.

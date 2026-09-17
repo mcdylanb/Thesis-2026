@@ -15,8 +15,8 @@ Vocabulary: see [`CONTEXT.md`](../CONTEXT.md).
 |---|---|---|
 | `relay/relay.ino` | live | **Relay.** Receives Anchor records over ESP-NOW, re-emits `CSI,`/`STAT,` lines over USB serial and WiFi UDP to the Gateway. |
 | `anchor_arduino_wireless/anchor_arduino_wireless.ino` | live | **Anchor** (wireless). Sniffs, packs each record into an ESP-NOW struct addressed to the Relay. |
-| `anchor_arduino_wireless/esp_now_tx_rx/transmitter/transmitter.ino` | needs-decision | ESP-NOW bring-up experiment (transmit side). No CSI. |
-| `anchor_arduino_wireless/esp_now_tx_rx/receiver/receiver.ino` | needs-decision | ESP-NOW bring-up experiment (receive side). Precursor of `relay.ino`. |
+| `anchor_arduino_wireless/esp_now_tx_rx/transmitter/transmitter.ino` | needs-decision | ESP-NOW bring-up spike (transmit side). No CSI. |
+| `anchor_arduino_wireless/esp_now_tx_rx/receiver/receiver.ino` | needs-decision | ESP-NOW bring-up spike (receive side). Precursor of `relay.ino`. |
 | `anchor_arduino/anchor_arduino.ino` | legacy | Anchor (wired). Original serial-only sketch; same line format as the ESP-IDF build. |
 | `anchor_arduino/anchor2_arduino/anchor2_arduino.ino` | needs-decision | Byte-for-byte copy of `anchor_arduino.ino` with `ANCHOR_ID "A2"` and `WIFI_CHANNEL 4`. Only the CONFIG block differs. |
 | `anchor/` (ESP-IDF project) | needs-decision | Anchor (wired), ESP-IDF v5.4 native build. Same output as the Arduino sketch; nobody on the team currently flashes it. |

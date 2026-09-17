@@ -23,7 +23,7 @@ laptop turns the stream into localization features. Terms are defined in
 | `gateway/` | Python preprocessing package: parse Captures → windows → RSSI smoothing, CSI normalization, D-CFR. |
 | `tests/` | pytest suite for `gateway/` and the UDP listener. |
 | `thesis/` | LaTeX manuscript. `make thesis`. |
-| `journal/` | Dated work log — read the latest entry before a hardware session. |
+| `journal/` | Dated work log — read the latest entry before a hardware Trial. |
 | `docs/INVENTORY.md` | Status of every firmware/script/tool file (live / legacy / needs-decision). |
 | `docs/adr/` | Decisions, e.g. [why the Raspberry Pi was retired](docs/adr/0001-laptop-gateway-replaces-pi.md). |
 | `CONTEXT.md` | Glossary. Use these words in code, issues and the thesis. |
@@ -35,7 +35,7 @@ laptop turns the stream into localization features. Terms are defined in
 |---|---|---|
 | `uv` (Python env) | `brew install uv` | `winget install astral-sh.uv` |
 | `gh` (GitHub issues/PRs) | `brew install gh` then `gh auth login` | `winget install GitHub.cli` then `gh auth login` |
-| `make` | comes with Xcode CLT (`xcode-select --install`) | not needed — use the `uv run` commands in the table below (or run `make` inside WSL for non-hardware targets) |
+| `make` | comes with Xcode CLT (`xcode-select --install`) | use the `uv run` commands in the table below; `make` itself only exists inside WSL, which cannot see USB serial ports |
 | `latexmk` (thesis) | MacTeX or BasicTeX | MiKTeX or TeX Live |
 | Arduino IDE + esp32 core 3.x | [arduino.cc](https://www.arduino.cc/en/software), then Boards Manager URL `https://espressif.github.io/arduino-esp32/package_esp32_index.json` → install **esp32 by Espressif Systems** | same |
 | MATLAB (live dashboard, optional) | campus licence | same |
@@ -44,7 +44,7 @@ Then, from the repo root:
 
 ```sh
 make setup        # uv sync --extra dev --extra capture
-make test         # 51 tests should pass
+make test         # full pytest suite should pass
 ```
 
 Windows teammates run the Python side natively (serial ports are `COMx`), not in WSL.
@@ -68,7 +68,8 @@ can only be held by one program.
 
 ## Quickstart 2 — Capture (wireless)
 
-1. Start a hotspot with the SSID/password the Relay is flashed with, on a
+1. Start a hotspot with the SSID/password the Relay is flashed with
+   (default `trial-network` / `trial-password` in `relay.ino`), on a
    fixed 2.4 GHz channel that matches the Anchors' `WIFI_CHANNEL`.
 2. Connect the laptop to it and give it the static `GATEWAY_IP`.
 3. Power the Relay and Anchors.
@@ -85,7 +86,7 @@ Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial
 
 ```sh
 make preprocess DATA=data OUT=out/windows.jsonl    # windows + features from Captures
-make synth                                          # synthetic session in synth_data/ when you have no hardware
+make synth                                          # synthetic Trial in synth_data/ when you have no hardware
 make preprocess DATA=synth_data OUT=out/synth.jsonl
 ```
 
@@ -116,6 +117,6 @@ for the un-versioned appendix assets.
 
 - Issues live in GitHub Issues (`gh issue list`). Tickets labelled
   `ready-for-agent` are unblocked; `needs-info` ones are waiting on a team decision.
-- Log each hardware session in `journal/` (format in `journal/README.md`).
+- Log each hardware Trial in `journal/` (format in `journal/README.md`).
 - Don't delete files under `firmware/` or `scripts/` without resolving them
   in `docs/INVENTORY.md` first.

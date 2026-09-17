@@ -23,7 +23,7 @@ setup: ## Create .venv with dev + capture extras   | win: uv sync --extra dev --
 test: ## Run the pytest suite                      | win: uv run pytest
 	$(RUN) pytest
 
-synth: ## Generate a synthetic capture session     | win: uv run python -m gateway.synth --out synth_data
+synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gateway.synth --out synth_data
 	$(RUN) python -m gateway.synth --out $(SYNTH)
 
 preprocess: ## Windows+features from captures in DATA  | win: uv run python -m gateway --in data --out out/windows.jsonl --summary

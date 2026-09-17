@@ -1,6 +1,6 @@
 # Hybrid RSSI–CSI Localization
 
-Passive WiFi localization system for the 2026 thesis: ESP32 sniffers capture
+Passive WiFi localization system for the 2026 thesis: ESP32 Anchors capture
 RSSI and CSI from nearby transmitters, and a laptop turns those captures into
 localization features.
 
@@ -38,9 +38,9 @@ One `CSI,` or `STAT,` line emitted by an Anchor.
 _Avoid_: packet, sample, row
 
 **Capture**:
-A per-Anchor CSV file of Records landed by the Gateway during one session.
+A per-Anchor CSV file of Records landed by the Gateway during one Trial.
 _Avoid_: log, dump, dataset
 
 **Trial**:
-One experimental run with a fixed authorized-device list and target placement.
+One measurement pass with a fixed authorized-device list and target placement.
 _Avoid_: experiment, session, run

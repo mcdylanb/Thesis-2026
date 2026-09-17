@@ -26,8 +26,8 @@ speed 921600); board-support setup is under "Arduino IDE version" below.
 
 ## Anchor firmware — passive RSSI + CSI sniffer
 
-Each ESP32 NodeMCU Anchor (A1–A4) passively sniffs 802.11 packets on a fixed
-2.4 GHz channel and emits one record per packet containing the tuple required
+Each ESP32 NodeMCU Anchor (A1–A4) passively sniffs 802.11 frames on a fixed
+2.4 GHz channel and emits one Record per frame containing the tuple required
 by the methodology chapter:
 
 ```
@@ -172,7 +172,10 @@ coincide. Serial output stays active in UDP mode. Test with:
 nc -ul 5555
 ```
 
-## Gateway logger
+## Gateway logger (legacy, wired Anchors)
+
+> Superseded by `make listen` / `make capture` at the repo root; `pip install
+> -r requirements.txt` still works but `pyproject.toml` is the source of truth.
 
 ```sh
 cd Thesis-2026

@@ -52,9 +52,10 @@ Windows teammates run the Python side natively (serial ports are `COMx`), not in
 
 Open each sketch in Arduino IDE, board **ESP32 Dev Module**, upload speed 115200 (921600 fails on many CH340 clones).
 
-1. **Relay** — `firmware/relay/relay.ino`. Edit the CONFIG block:
-   `WIFI_SSID` / `WIFI_PASSWORD` (the trial network), `GATEWAY_IP` (the
-   laptop's static IP, default `192.168.1.100`), `GATEWAY_PORT` (`5555`).
+1. **Relay** — `firmware/relay/relay.ino`. The CONFIG block is set for the
+   team's trial network: the TP-Link MP700 pocket WiFi (`TP-Link_40F1`,
+   2.4 GHz fixed channel 11, Gateway at `192.168.0.197`, port `5555`).
+   Only edit it if you're on a different network.
    Serial Monitor at 115200 shows `INFO,wifi_connected,ip=…` when it joins.
 2. **Anchors** — `firmware/anchor_arduino_wireless/anchor_arduino_wireless.ino`,
    once per board. Edit `ANCHOR_ID` (`A1`..`A4`), `relay_mac` (the Relay's
@@ -67,10 +68,10 @@ can only be held by one program.
 
 ## Quickstart 2 — Capture (wireless)
 
-1. Start a hotspot with the SSID/password the Relay is flashed with
-   (default `trial-network` / `trial-password` in `relay.ino`), on a
-   fixed 2.4 GHz channel that matches the Anchors' `WIFI_CHANNEL`.
-2. Connect the laptop to it and give it the static `GATEWAY_IP`.
+1. Power the MP700 (admin `http://192.168.0.1`: 2.4 GHz, fixed channel 11
+   — must match the Anchors' `WIFI_CHANNEL`).
+2. Connect the laptop to `TP-Link_40F1` and set IPv4 manually to
+   `192.168.0.197` / `255.255.255.0` / router `192.168.0.1`.
 3. Power the Relay and Anchors.
 4. `make listen` — you should see `new anchor A1 -> data/A1_<ts>.csv` and a
    `lines=… heartbeats=…` counter every 5 s. No lines? The Anchors are on the

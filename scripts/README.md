@@ -1,4 +1,29 @@
-# Live Data Sync Pipeline Setup (Raspberry Pi -> Laptop)
+# Gateway scripts
+
+Listeners that land the Relay's `CSI,` / `STAT,` line stream as per-Anchor
+Captures under `data/`. Run them through the root `Makefile`:
+
+| Target | Script | Link |
+|---|---|---|
+| `make listen` | `relay_udp_listener.py` | **Wireless (primary):** Relay → WiFi UDP → this laptop |
+| `make capture PORT=…` | `uart_listener_2.py` | Serial fallback: Relay on USB |
+
+`uart_listener.py` is an earlier copy of `uart_listener_2.py`; see
+`docs/INVENTORY.md` for the status of every script here.
+
+---
+
+# Legacy: Raspberry Pi Gateway (rsync pipeline)
+
+> **Status: legacy.** Superseded by the laptop Gateway — see
+> [ADR-0001](../docs/adr/0001-laptop-gateway-replaces-pi.md). Kept until the
+> team resolves the file inventory. Nothing below is needed for the wireless
+> quickstart.
+>
+> **Pending team decision:** the Pi IP, username and password below are
+> committed in plain text (here and in `rsync_data_transfer.sh`). Whether to
+> move them to a git-ignored config is an open discussion; do not treat the
+> current state as the agreed convention.
 
 This pipeline streams raw CSI/RSSI data captured on the Raspberry Pi directly to the Laptop over Wi-Fi using `rsync` over SSH.
 

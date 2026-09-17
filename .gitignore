@@ -30,3 +30,6 @@ data/*
 out/
 synth_data/
 .pytest_cache/
+
+# macOS
+.DS_Store

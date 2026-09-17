@@ -6,11 +6,11 @@
 // ==================== CONFIG (edit per sniffer) ====================
 #define ANCHOR_ID        "A1"   // replace with sniffer id num
 #define WIFI_CHANNEL     11     // sniff channel
-#define SERIAL_BAUD      921600 
+#define SERIAL_BAUD      115200 // CH340 clones garble 921600
 
 // Esp-Now = 3c:8a:1f:9a:66:8c
 // a1 = 3c:8a:1f:5e:ae:e4
-uint8_t relay_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0x8c}; // replace with the Relay's ESP-NOW MAC address
+uint8_t relay_mac[] = {0x68, 0xfe, 0x71, 0xfa, 0xdf, 0xfc}; // replace with the Relay's ESP-NOW MAC address
 
 #define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
 #define QUEUE_DEPTH      64

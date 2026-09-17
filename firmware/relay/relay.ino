@@ -84,7 +84,7 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
 }
 
 void setup() {
-  Serial.begin(921600);
+  Serial.begin(115200);
   
   // Initialize the LED pin as an output and ensure it is OFF to start
   pinMode(LED_PIN, OUTPUT);

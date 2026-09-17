@@ -14,7 +14,7 @@ VALID_PREFIXES = ("CSI,", "STAT,", "HEARTBEAT,")
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=str, default="/dev/ttyUSB0", help="Gateway serial port (e.g., /dev/ttyUSB0 or /dev/ttyACM0)")
-    ap.add_argument("--baud", type=int, default=921600)
+    ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--outdir", type=Path, default=Path("../data"))
     ap.add_argument("--verbose", action="store_true", help="Print every received packet")
     args = ap.parse_args()

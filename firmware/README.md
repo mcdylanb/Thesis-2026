@@ -22,7 +22,7 @@ On the Gateway, `make listen` (UDP) or `make capture` (serial) lands them as
 Captures — see the root `README.md`.
 
 Flash both with Arduino IDE (**ESP32 Dev Module**, esp32 core 3.x, upload
-speed 921600); board-support setup is under "Arduino IDE version" below.
+speed 115200); board-support setup is under "Arduino IDE version" below.
 
 ## Anchor firmware — passive RSSI + CSI sniffer
 

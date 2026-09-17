@@ -51,12 +51,12 @@ Windows teammates run the Python side natively (serial ports are `COMx`), not in
 
 ## Quickstart 1 — Flash
 
-Open each sketch in Arduino IDE, board **ESP32 Dev Module**, upload speed 921600.
+Open each sketch in Arduino IDE, board **ESP32 Dev Module**, upload speed 115200 (921600 fails on many CH340 clones).
 
 1. **Relay** — `firmware/relay/relay.ino`. Edit the CONFIG block:
    `WIFI_SSID` / `WIFI_PASSWORD` (the trial network), `GATEWAY_IP` (the
    laptop's static IP, default `192.168.1.100`), `GATEWAY_PORT` (`5555`).
-   Serial Monitor at 921600 shows `INFO,wifi_connected,ip=…` when it joins.
+   Serial Monitor at 115200 shows `INFO,wifi_connected,ip=…` when it joins.
 2. **Anchors** — `firmware/anchor_arduino_wireless/anchor_arduino_wireless.ino`,
    once per board. Edit `ANCHOR_ID` (`A1`..`A4`), `relay_mac` (the Relay's
    ESP-NOW MAC, printed on its serial boot banner), and `WIFI_CHANNEL` — it

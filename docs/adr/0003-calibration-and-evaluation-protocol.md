@@ -7,13 +7,13 @@ date: 2026-09-18
 
 ## Context
 
-ADR-0002 fixes the localizers; this ADR fixes how the radio map is built and
+ADR-0002 fixes the localizers; this ADR fixes how the Radio map is built and
 how the proposed pipeline is compared to the baseline, so the numbers in the
 results chapter come from a protocol written down before the data existed.
 
 Two facts from the 2026-08-28 two-anchor capture shape the protocol. First,
-ambient devices transmit at 0.02–0.2 packets/s, so a 1 s window frequently
-holds zero or one packet from them and the Sniper's "≥ 3 valid CSI packets"
+ambient devices transmit at 0.02–0.2 frames/s, so a 1 s window frequently
+holds zero or one Record from them and the Sniper's "≥ 3 valid CSI Records"
 precondition cannot be met; a controlled steady transmitter is needed for
 calibration. Second, stability fell to ρ ≈ 0.0–0.1 at −85 dBm and below,
 which bounds how far a target can be from the Anchors before the Sniper stops
@@ -26,30 +26,31 @@ running.
 a fixed MAC. The Beacon is the calibration transmitter and the primary test
 target (#30).
 
-**Reference grid.** The radio map is built from a dense grid of Reference
+**Reference grid.** The Radio map is built from a dense grid of Reference
 points at roughly 1 m spacing across the trial area.
 
 **Test positions P1–P10 are held out.** They are never Reference points and
 never used to fit the Scout; they are chosen off-grid so that k-NN cannot
 score by coincidence.
 
-**Calibration and test are separate sessions.** The Calibration session and
-the test Trials are run on different occasions so that radio-map drift is
-inside the measurement, not excluded from it. Each test position gets ≥ 3
-Trials, and each Trial must yield ≥ 30 sufficient windows (windows meeting
-the ADR-0002 fallback preconditions) or it is repeated.
+**Calibration and test are run on separate occasions.** The Calibration
+session and the test Trials happen on different days so that Radio map drift
+is inside the measurement, not excluded from it. Each Test position gets ≥ 3
+Trials, and each Trial must yield ≥ 30 sufficient windows — windows in which
+≥ `min_anchors` Anchors have at least one Record, i.e. windows the
+preprocess keeps — or it is repeated. A sufficient window may still be in
+`fallback` Mode; sufficiency is about coverage, not Sniper eligibility.
 
 **Same-device plus one cross-device Trial.** The main comparison uses the
-Beacon for both calibration and test. One additional Trial per test position
-uses a different transmitter (a phone, or a second ESP32); the gap between
-same-device and cross-device error is reported as a result, not hidden or
-averaged away.
+Beacon for both calibration and test. One additional Trial uses a different
+transmitter (a phone, or a second ESP32); the gap between same-device and
+cross-device error is reported as a result, not hidden or averaged away.
 
 **Window length is a Trial parameter.** ≈ 1 s for the Beacon; 5–10 s for
 sporadic ambient targets so that a window has a chance of holding the ≥ 3
-packets the Sniper needs at the measured 0.02–0.2 packets/s.
+Records the Sniper needs at the measured 0.02–0.2 frames/s.
 
-**Anchor placement.** Anchors are placed so that every test position keeps
+**Anchor placement.** Anchors are placed so that every Test position keeps
 the target above the Sniper's RSSI floor (−80 dBm initially) at ≥
 `min_anchors` Anchors; a layout that cannot do this is changed before Trials
 begin, not compensated for afterwards.
@@ -61,11 +62,11 @@ p90 error, fallback rate and per-window latency, for both pipelines.
 
 ## Consequences
 
-- #30 delivers the Beacon firmware and the calibration-session runbook; its
-  positions file is what #26's radio map builder reads.
-- The evaluation harness (#26, #29) must keep test positions and Reference
+- #30 delivers the Beacon firmware and the Calibration session runbook; its
+  positions file is what #26's Radio map builder reads.
+- The evaluation harness (#26, #29) must keep Test positions and Reference
   points in separate files so held-out status is enforced by construction.
-- A test position whose Trials cannot reach ≥ 30 sufficient windows is a
+- A Test position whose Trials cannot reach ≥ 30 sufficient windows is a
   placement or floor problem and is fixed in the layout (#25's trial layout
   file), not by lowering the threshold silently; any threshold change goes
   through ADR-0002.

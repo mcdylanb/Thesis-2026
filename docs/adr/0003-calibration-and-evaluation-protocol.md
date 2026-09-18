@@ -31,11 +31,15 @@ points at roughly 1 m spacing across the trial area.
 
 **Test positions P1–P10 are held out.** They are never Reference points and
 never used to fit the Scout; they are chosen off-grid so that k-NN cannot
-score by coincidence.
+score by coincidence. This is the Horus protocol (Youssef & Agrawala 2005
+§7.1: test locations that never coincide with a training point).
 
 **Calibration and test are run on separate occasions.** The Calibration
 session and the test Trials happen on different days so that Radio map drift
-is inside the measurement, not excluded from it. Each Test position gets ≥ 3
+is inside the measurement, not excluded from it — again Horus §7.1 (test set
+"collected by different persons on different days"), and the drift itself is
+documented in RADAR's technical report (Bahl & Padmanabhan MSR-TR-2000-12
+§6.2: one human body ≈ 3.5 dB). Each Test position gets ≥ 3
 Trials, and each Trial must yield ≥ 30 sufficient windows — windows in which
 ≥ `min_anchors` Anchors have at least one Record, i.e. windows the
 preprocess keeps — or it is repeated. A sufficient window may still be in
@@ -45,6 +49,10 @@ preprocess keeps — or it is repeated. A sufficient window may still be in
 Beacon for both calibration and test. One additional Trial uses a different
 transmitter (a phone, or a second ESP32); the gap between same-device and
 cross-device error is reported as a result, not hidden or averaged away.
+Device diversity is a known, quantified effect (Haeberlen et al. 2004;
+Kjærgaard & Munk 2008; Kjærgaard 2011); the single cross-device Trial
+measures it here, and ADR-0002's within-window RSSI z-scoring is the
+mitigation.
 
 **Window length is a Trial parameter.** ≈ 1 s for the Beacon; 5–10 s for
 sporadic ambient targets so that a window has a chance of holding the ≥ 3
@@ -73,4 +81,9 @@ p90 error, fallback rate and per-window latency, for both pipelines.
 - The cross-device Trial may show the proposed pipeline losing its advantage;
   that is a valid finding and is written up as such.
 - Calibration takes real time: ~1 m grid over the trial area × window length
-  × enough windows per point. The runbook in #30 must budget for it.
+  × enough windows per point. The runbook in #30 must budget for it. Horus
+  used 1.52–2.13 m grids and FILA room-scale testbeds of 3×4 m and 5×8 m, so
+  ~1 m is at the dense end of precedent, not outside it.
+- The precedents above are traced to primary sources in
+  `docs/research/2026-09-18-adr-0002-0003-validation.md`; the citation keys
+  are in `thesis/references.bib`.

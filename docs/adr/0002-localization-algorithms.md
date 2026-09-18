@@ -133,7 +133,13 @@ is the documented reason per-Record normalization is mandatory.
   augmentation of the Scout; the remaining cross-device gap is measured, not
   assumed away (see ADR-0003).
 - #29's ablation table has at least these arms: D-CFR + Pearson (proposed),
-  raw normalized amplitude + Pearson, D-CFR + Euclidean; the weight sweep,
-  cross-device and dropout rows come on top.
+  raw normalized amplitude + Pearson, D-CFR + Euclidean, and an RSSI-only
+  k-NN (the CSI block dropped). The RSSI-only row is not the baseline — the
+  baseline is the fused RSSI+CSI k-NN above — but it lets the chapter show
+  that CSI adds value on its own, separately from the coarse-to-fine claim;
+  the weight sweep, cross-device and dropout rows come on top.
+- The thesis compares against the fused RSSI+CSI baseline, not RSSI-only
+  trilateration; `introduction.tex` objective 4 still says the latter and
+  #31 must reword it to match Chapter 3.
 - The rationale above is checked against primary sources in
   `docs/research/2026-09-18-adr-0002-0003-validation.md`.

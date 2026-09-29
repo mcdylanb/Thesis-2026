@@ -3,14 +3,22 @@
 #include <esp_wifi.h>
 #include <esp_timer.h>
 
-// ==================== CONFIG (edit per sniffer) ====================
-#define ANCHOR_ID        "A1"   // replace with sniffer id num
+// ==================== CONFIG (edit per Anchor) ====================
+#define ANCHOR_ID        "A1"   // replace with this Anchor's id (A1..A4)
 #define WIFI_CHANNEL     11     // sniff channel
-#define SERIAL_BAUD      921600 
+#define SERIAL_BAUD      115200 // CH340 clones garble 921600
 
 // Esp-Now = 3c:8a:1f:9a:66:8c
 // a1 = 3c:8a:1f:5e:ae:e4
-uint8_t relay_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0x8c}; // replace with the Relay's ESP-NOW MAC address
+uint8_t relay_mac[] = {0x68, 0xfe, 0x71, 0xfa, 0xdf, 0xfc}; // replace with the Relay's ESP-NOW MAC address
+
+// Source MACs dropped in csi_rx_cb before they reach ESP-NOW (see
+// firmware/README.md "Anchor CONFIG block"). relay_mac is always dropped;
+// list other never-a-target radios here, e.g. the trial network AP.
+const uint8_t ignore_macs[][6] = {
+  {0x8c, 0x90, 0x2d, 0x19, 0x40, 0xf1}, // MP700 trial network AP (beacons)
+};
+#define IGNORE_MACS_N (sizeof(ignore_macs) / sizeof(ignore_macs[0]))
 
 #define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
 #define QUEUE_DEPTH      64
@@ -33,6 +41,17 @@ typedef struct __attribute__((packed)) {
 static QueueHandle_t s_queue;
 static volatile uint32_t s_csi_count = 0;
 
+static inline bool is_ignored_mac(const uint8_t *mac) {
+  // relay_mac is kept separate from ignore_macs: it is non-const and doubles
+  // as the ESP-NOW peer address, so it must always be dropped regardless of
+  // what the ignore list holds.
+  if (memcmp(mac, relay_mac, 6) == 0) return true;
+  for (size_t i = 0; i < IGNORE_MACS_N; i++) {
+    if (memcmp(mac, ignore_macs[i], 6) == 0) return true;
+  }
+  return false;
+}
+
 // ---------------- Callbacks ----------------
 static void promisc_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
   // keeping promiscuous active to satisfy radio requirements
@@ -40,7 +59,8 @@ static void promisc_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 
 static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
   if (!info || !info->buf || info->len == 0) return;
-  
+  if (is_ignored_mac(info->mac)) return;
+
   s_csi_count++;
 
   esp_now_csi_t rec;

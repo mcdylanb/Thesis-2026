@@ -7,9 +7,9 @@
 // NOTE: associating locks this radio to the trial network's channel — every
 // anchor's WIFI_CHANNEL (see anchor_arduino_wireless.ino) must match it for
 // ESP-NOW to keep working.
-#define WIFI_SSID        "trial-network"    // trial network the Relay joins
-#define WIFI_PASSWORD    "trial-password"
-#define GATEWAY_IP       "192.168.1.100"    // static IP reserved for the Gateway
+#define WIFI_SSID        "TP-Link_40F1"     // trial network: the team MP700 pocket WiFi, 2.4 GHz ch 11
+#define WIFI_PASSWORD    "90061962"
+#define GATEWAY_IP       "192.168.0.197"    // static IP reserved for the Gateway on the MP700
 #define GATEWAY_PORT     5555
 #define WIFI_RECONNECT_INTERVAL_MS 5000     // how often to retry a dropped association
 // ======================================================================
@@ -84,7 +84,7 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
 }
 
 void setup() {
-  Serial.begin(921600);
+  Serial.begin(115200);
   
   // Initialize the LED pin as an output and ensure it is OFF to start
   pinMode(LED_PIN, OUTPUT);

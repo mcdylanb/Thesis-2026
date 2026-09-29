@@ -11,7 +11,7 @@ Anchor A1..A4 ──ESP-NOW──▶ Relay ──WiFi UDP (trial network)──�
 
 | Board | Sketch | Per-board edit |
 |---|---|---|
-| Anchor | `anchor_arduino_wireless/anchor_arduino_wireless.ino` | `ANCHOR_ID`, `WIFI_CHANNEL`, `relay_mac` |
+| Anchor | `anchor_arduino_wireless/anchor_arduino_wireless.ino` | `ANCHOR_ID` (per board); `WIFI_CHANNEL`, `relay_mac`, `ignore_macs` (per trial network) |
 | Relay  | `relay/relay.ino` | `WIFI_SSID`, `WIFI_PASSWORD`, `GATEWAY_IP`, `GATEWAY_PORT` |
 
 The Relay joins the trial network, which locks its radio to that network's
@@ -21,8 +21,27 @@ ASCII line over USB serial **and** unicast UDP to `GATEWAY_IP:GATEWAY_PORT`.
 On the Gateway, `make listen` (UDP) or `make capture` (serial) lands them as
 Captures — see the root `README.md`.
 
+### Anchor CONFIG block (wireless sketch)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `ANCHOR_ID` | `"A1"` | Emitted in every Record; set per board (`A1`..`A4`) |
+| `WIFI_CHANNEL` | `11` | Fixed sniff channel; must equal the trial network's channel |
+| `SERIAL_BAUD` | `115200` | USB serial rate (CH340 clones garble 921600) |
+| `relay_mac` | MP700-era Relay | The Relay's ESP-NOW MAC; always dropped from sniffed frames |
+| `ignore_macs` | MP700 AP `8c:90:2d:19:40:f1` | Extra source MACs dropped in the CSI callback before ESP-NOW |
+
+The Relay's UDP forwarding is 802.11 traffic on the sniff channel, so a
+few cm from the Anchor it would otherwise be sniffed right back — 98% of
+the first wireless Capture was the Relay's own frames. Frames whose source
+MAC equals `relay_mac` or any entry in `ignore_macs` are discarded in
+`csi_rx_cb` (one `memcmp` each) and never reach the ESP-NOW queue. Add the
+trial network's AP here when it changes; never add a target.
+`gateway --devices` / `--mac` still filter at preprocessing time, but only
+this firmware-side drop recovers the airtime.
+
 Flash both with Arduino IDE (**ESP32 Dev Module**, esp32 core 3.x, upload
-speed 921600); board-support setup is under "Arduino IDE version" below.
+speed 115200); board-support setup is under "Arduino IDE version" below.
 
 ## Anchor firmware — passive RSSI + CSI sniffer
 

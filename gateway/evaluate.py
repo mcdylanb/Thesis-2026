@@ -19,8 +19,7 @@ is the first, and later localizers plug into `evaluate()` unchanged. A
 localizer that also reports a bounding box (the Scout) adds a
 `locate(window) -> {"x", "y", "bbox"} | None` method; the harness then
 scores bbox hit-rate (the box contains the true position) and mean bbox
-area as a fraction of the room. Further per-window fields (#28's Mode) go
-in the same dict.
+area as a fraction of the room.
 """
 
 from __future__ import annotations

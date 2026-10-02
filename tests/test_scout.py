@@ -125,3 +125,25 @@ def test_run_scout_on_the_default_simulator(tmp_path):
     assert saved.config == ScoutConfig()
     assert saved.radio_map_sha256 == hashlib.sha256(
         (tmp_path / "eval" / "radio_map.json").read_bytes()).hexdigest()
+
+
+def test_bbox_holds_the_clipped_mean_when_the_mean_is_outside_the_room():
+    # Kernel means are unconstrained network outputs; a far, light kernel can
+    # drag the mixture mean past a wall. The box then holds its nearest
+    # in-room point rather than losing it to clipping.
+    # The far kernel is too light to be in the densest 95 %, so only the
+    # mean can stretch the box to the wall.
+    mixture = Mixture(weights=np.array([0.96, 0.04, 0.0]),
+                      means=np.array([[1.0, 1.0], [100.0, 1.0], [1.0, 1.0]]),
+                      sds=np.full((3, 2), 0.1))
+    assert mixture.mean()[0] > ROOM[0]  # 4.96 m, beyond the 4 m wall
+    x0, y0, x1, y1 = bbox(mixture, ROOM)
+    assert x0 < 1.0 and x1 == ROOM[0]
+    assert y0 <= 1.0 <= y1 < 1.5
+
+
+def test_training_is_deterministic_given_a_seed():
+    rssi, xy = _toy_set()
+    runs = [MdnScout(ANCHORS, room=ROOM, config=ScoutConfig(epochs=50, seed=3)).fit(rssi, xy)
+            for _ in range(2)]
+    assert runs[0] == runs[1]

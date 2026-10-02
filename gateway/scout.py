@@ -42,7 +42,7 @@ from torch import nn
 
 from gateway.evaluate import evaluate, format_comparison, format_table, run_baseline
 from gateway.io import read_jsonl
-from gateway.knn import RSSI_FLOOR_DBM, zscored_rssi
+from gateway.knn import RSSI_FLOOR_DBM, window_rssi, zscored_rssi
 from gateway.radiomap import RadioMap
 from gateway.sim import Layout, load_layout
 
@@ -99,10 +99,11 @@ class Mixture:
 def bbox(mixture: Mixture, room: Tuple[float, float], coverage: float = 0.95,
          n_samples: int = 4000, seed: int = 0) -> Box:
     """Axis-aligned box around the densest `coverage` of mixture samples,
-    clipped to the room (ADR-0002). The box is widened to take in the
-    mixture mean if the densest samples miss it (a light, far kernel can
-    pull the mean outside them), so the Sniper's search region always
-    holds it."""
+    clipped to the room (ADR-0002). One deliberate departure from a pure
+    95 % box: it is widened to take in the mixture mean if the densest
+    samples miss it (a light, far kernel can pull the mean outside them),
+    so the Sniper's search region always holds it. A mean beyond a wall is
+    held at its nearest in-room point, since the box is clipped last."""
     pts = mixture.sample(n_samples, np.random.default_rng(seed))
     dens = mixture.log_pdf(pts)
     keep = pts[dens >= np.quantile(dens, 1.0 - coverage)]
@@ -123,7 +124,7 @@ def scout_input(
     return np.concatenate([zscored_rssi(rssi, anchor_ids, floor_dbm), mask])
 
 
-def training_set(
+def augmented_samples(
     radio_map: RadioMap, config: ScoutConfig
 ) -> Tuple[List[Dict[str, Optional[float]]], np.ndarray]:
     """Each Reference point's RSSI as stored, plus `n_augment` path-loss
@@ -188,7 +189,7 @@ class MdnScout:
                        config: Optional[ScoutConfig] = None) -> Tuple["MdnScout", List[float]]:
         """A Scout trained on `radio_map`, and its loss per epoch."""
         scout = cls(radio_map.anchor_ids, room, config)
-        losses = scout.fit(*training_set(radio_map, scout.config))
+        losses = scout.fit(*augmented_samples(radio_map, scout.config))
         return scout, losses
 
     def _params(self, x: torch.Tensor):
@@ -226,8 +227,7 @@ class MdnScout:
         """The mixture over (x, y) in metres for one preprocessed window."""
         if not window["sufficient"]:
             return None
-        rssi = {a: None if obs is None else obs["rssi"]
-                for a, obs in window["anchors"].items()}
+        rssi = window_rssi(window["anchors"])
         x = torch.as_tensor(self._input(rssi)[None, :], dtype=torch.float32)
         with torch.no_grad():
             log_pi, mu, sd = self._params(x)
@@ -275,12 +275,12 @@ class MdnScout:
 
 
 def run_scout(sim_dir: Path, layout: Layout, out_dir: Path,
-              config: Optional[ScoutConfig] = None, k: int = 3) -> dict:
+              config: Optional[ScoutConfig] = None, knn_k: int = 3) -> dict:
     """The k-NN baseline (which also builds the Radio map), then the Scout
     trained on that Radio map and scored on the same test windows. Writes
     <out_dir>/scout.pt (weights + config) and <out_dir>/scout.json."""
     sim_dir, out_dir = Path(sim_dir), Path(out_dir)
-    baseline = run_baseline(sim_dir, layout, out_dir, k=k)
+    baseline = run_baseline(sim_dir, layout, out_dir, k=knn_k)
     radio_map_path = out_dir / "radio_map.json"
     radio_map = RadioMap.load(radio_map_path)
 

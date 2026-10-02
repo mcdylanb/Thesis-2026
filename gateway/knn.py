@@ -48,6 +48,11 @@ def zscored_rssi(
     return np.array([(present.get(a, imputed) - mean) / sd for a in anchor_ids])
 
 
+def window_rssi(anchors: Dict[str, Optional[dict]]) -> Dict[str, Optional[float]]:
+    """A window's per-Anchor smoothed RSSI, None where the Anchor is absent."""
+    return {a: None if obs is None else obs["rssi"] for a, obs in anchors.items()}
+
+
 def feature_vector(
     anchors: Dict[str, Optional[dict]],
     anchor_ids: Sequence[str],
@@ -63,10 +68,7 @@ def feature_vector(
         d = np.zeros(n_dcfr) if d is None else np.asarray(d, dtype=np.float64)
         dcfr_blocks.append(d - d.mean())
 
-    z = zscored_rssi(
-        {a: None if obs is None else obs["rssi"] for a, obs in anchors.items()},
-        anchor_ids, floor_dbm,
-    )
+    z = zscored_rssi(window_rssi(anchors), anchor_ids, floor_dbm)
     dcfr = np.concatenate(dcfr_blocks)
     return np.concatenate([z / np.sqrt(len(z)), dcfr / np.sqrt(len(dcfr))])
 

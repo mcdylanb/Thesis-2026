@@ -47,8 +47,8 @@ make test         # full pytest suite should pass
 ```
 
 The `scout` extra is PyTorch (CPU is enough), used only by the MDN Scout
-(`gateway/scout.py`); outside uv, `pip install '.[scout]'`. Without it the
-Scout's tests are skipped.
+(`gateway/scout.py`); outside uv, `pip install '.[scout]'`. `make test`
+installs it; a plain `pytest` run without it skips the Scout's tests.
 
 Windows teammates run the Python side natively (serial ports are `COMx`), not in WSL.
 

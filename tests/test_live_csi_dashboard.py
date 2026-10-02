@@ -33,18 +33,18 @@ def _payload(line: str):
 
 def test_read_new_lines_leaves_partial_line_for_next_call(tmp_path):
     p = tmp_path / "A1_x.csv"
-    p.write_text("host_iso,host_ns,line\nrow1\nrow2 partial")
+    p.write_bytes(b"host_iso,host_ns,line\nrow1\nrow2 partial")
     with open(p, newline="") as fh:
         assert list(dash.read_new_lines(fh)) == ["host_iso,host_ns,line\n", "row1\n"]
-        with open(p, "a") as w:
-            w.write(" done\nrow3\n")
+        with open(p, "ab") as w:
+            w.write(b" done\nrow3\n")
         assert list(dash.read_new_lines(fh)) == ["row2 partial done\n", "row3\n"]
         assert list(dash.read_new_lines(fh)) == []
 
 
 def test_read_new_lines_limit_resumes_where_it_stopped(tmp_path):
     p = tmp_path / "A1_x.csv"
-    p.write_text("a\nb\nc\n")
+    p.write_bytes(b"a\nb\nc\n")
     with open(p, newline="") as fh:
         assert list(dash.read_new_lines(fh, limit=2)) == ["a\n", "b\n"]
         assert list(dash.read_new_lines(fh, limit=2)) == ["c\n"]

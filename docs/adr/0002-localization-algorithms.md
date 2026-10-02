@@ -84,7 +84,8 @@ is above the floor, initially −80 dBm. The Sniper runs only when at least
 `min_anchors` Anchors are Sniper-ready (`min_anchors` is the preprocess
 `--min-anchors` option, default 3); an Anchor that fails any one condition
 is simply not counted, it does not veto the window. Otherwise the window's
-Mode is `fallback` and the Scout's bbox center is the estimate. Mode is
+Mode is `fallback` and the estimate is the Scout's: the mean of its most
+probable kernel, per the Scout paragraph (the bbox is still reported). Mode is
 logged per window and the fallback rate is a reported metric, not hidden.
 The 0.6 stability threshold sits between the ≈ 0.75 seen on the −65 dBm
 device and the ≈ 0.1 seen on ambient devices in the 2026-08-28 capture; the

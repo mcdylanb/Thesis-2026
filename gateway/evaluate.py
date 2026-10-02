@@ -15,7 +15,12 @@ the CLI warns about those.
 
 A localizer is any object with a `name` and an `estimate(window) ->
 (x, y) | None` method over one preprocessed window dict; the k-NN baseline
-is the first, and later localizers plug into `evaluate()` unchanged.
+is the first, and later localizers plug into `evaluate()` unchanged. A
+localizer that also reports a bounding box (the Scout) adds a
+`locate(window) -> {"x", "y", "bbox"} | None` method; the harness then
+scores bbox hit-rate (the box contains the true position) and mean bbox
+area as a fraction of the room. Further per-window fields (#28's Mode) go
+in the same dict.
 """
 
 from __future__ import annotations
@@ -69,37 +74,64 @@ def metrics(
     }
 
 
+def bbox_metrics(box_hits: Sequence[bool], box_area_fracs: Sequence[float]) -> dict:
+    """Bbox hit-rate and mean area / room area; None without boxes."""
+    return {
+        "bbox_hit_rate": float(np.mean(box_hits)) if len(box_hits) else None,
+        "bbox_area_frac": float(np.mean(box_area_fracs)) if len(box_area_fracs) else None,
+    }
+
+
+def _locate(localizer, window: dict) -> Optional[dict]:
+    if hasattr(localizer, "locate"):
+        return localizer.locate(window)
+    est = localizer.estimate(window)
+    return None if est is None else {"x": est[0], "y": est[1]}
+
+
 def evaluate(localizer, windows: List[dict], truth: dict, layout: Layout) -> dict:
     """Score `localizer` on every Trial of a test session."""
     per_trial = windows_by_trial(windows, truth)
+    room_area = layout.width_m * layout.height_m
 
     rows = []
-    pooled: Tuple[list, list, list] = ([], [], [])
+    pooled: Tuple[list, ...] = ([], [], [], [], [])
     n_total = 0
     for trial in truth["trials"]:
         device = placed_device(trial)
-        true_zone = zone_of(layout, device["x"], device["y"])
-        errors, hits, latencies = [], [], []
+        tx, ty = device["x"], device["y"]
+        true_zone = zone_of(layout, tx, ty)
+        errors, hits, latencies, box_hits, box_areas = [], [], [], [], []
         for w in per_trial[trial["id"]]:
             t0 = time.perf_counter()
-            est = localizer.estimate(w)
+            loc = _locate(localizer, w)
             elapsed = time.perf_counter() - t0
-            if est is None:
+            if loc is None:
                 continue
             latencies.append(elapsed)
-            errors.append(float(np.hypot(est[0] - device["x"], est[1] - device["y"])))
-            hits.append(zone_of(layout, *est) == true_zone)
+            errors.append(float(np.hypot(loc["x"] - tx, loc["y"] - ty)))
+            hits.append(zone_of(layout, loc["x"], loc["y"]) == true_zone)
+            if loc.get("bbox") is not None:
+                x0, y0, x1, y1 = loc["bbox"]
+                box_hits.append(x0 <= tx <= x1 and y0 <= ty <= y1)
+                box_areas.append((x1 - x0) * (y1 - y0) / room_area)
         n = len(per_trial[trial["id"]])
         rows.append({
             "id": trial["id"], "device": device["name"],
-            "x": device["x"], "y": device["y"], "zone": true_zone,
+            "x": tx, "y": ty, "zone": true_zone,
             "n_sufficient": sum(w["sufficient"] for w in per_trial[trial["id"]]),
             **metrics(errors, hits, n, latencies),
+            **bbox_metrics(box_hits, box_areas),
         })
-        for acc, vals in zip(pooled, (errors, hits, latencies)):
+        for acc, vals in zip(pooled, (errors, hits, latencies, box_hits, box_areas)):
             acc.extend(vals)
         n_total += n
-    return {"trials": rows, "overall": metrics(*pooled[:2], n_total, pooled[2])}
+    errors, hits, latencies, box_hits, box_areas = pooled
+    return {
+        "trials": rows,
+        "overall": {**metrics(errors, hits, n_total, latencies),
+                    **bbox_metrics(box_hits, box_areas)},
+    }
 
 
 def preprocess_session(session_dir: Path, out: Path) -> Tuple[dict, List[dict], dict]:
@@ -145,15 +177,39 @@ def _fmt(v: Optional[float], spec: str = ".2f") -> str:
 
 
 def format_table(result: dict) -> str:
+    """Per-Trial table; bbox columns appear when the localizer reports boxes."""
+    boxes = result["overall"]["bbox_hit_rate"] is not None
     head = (f"{'Trial':<8}{'zone':<6}{'win':>5}{'avail':>7}{'MAE':>7}{'RMSE':>7}"
             f"{'median':>8}{'p90':>7}{'zone acc':>10}{'ms/win':>8}")
+    if boxes:
+        head += f"{'bbox hit':>10}{'bbox area':>11}"
     lines = [head, "-" * len(head)]
     for row in result["trials"] + [dict(result["overall"], id="overall", zone="")]:
-        lines.append(
+        line = (
             f"{row['id']:<8}{row['zone'] or '':<6}{row['n_windows']:>5}"
             f"{_fmt(row['availability'], '.0%'):>7}{_fmt(row['mae_m']):>7}"
             f"{_fmt(row['rmse_m']):>7}{_fmt(row['median_m']):>8}{_fmt(row['p90_m']):>7}"
             f"{_fmt(row['zone_accuracy'], '.0%'):>10}{_fmt(row['latency_ms_mean'], '.3f'):>8}"
+        )
+        if boxes:
+            line += (f"{_fmt(row['bbox_hit_rate'], '.0%'):>10}"
+                     f"{_fmt(row['bbox_area_frac'], '.0%'):>11}")
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def format_comparison(results: dict) -> str:
+    """One overall row per localizer, e.g. {"k-NN": ..., "Scout": ...}."""
+    head = (f"{'localizer':<11}{'avail':>7}{'MAE':>7}{'median':>8}{'p90':>7}"
+            f"{'zone acc':>10}{'bbox hit':>10}{'bbox area':>11}{'ms/win':>8}")
+    lines = [head, "-" * len(head)]
+    for name, result in results.items():
+        o = result["overall"]
+        lines.append(
+            f"{name:<11}{_fmt(o['availability'], '.0%'):>7}{_fmt(o['mae_m']):>7}"
+            f"{_fmt(o['median_m']):>8}{_fmt(o['p90_m']):>7}"
+            f"{_fmt(o['zone_accuracy'], '.0%'):>10}{_fmt(o['bbox_hit_rate'], '.0%'):>10}"
+            f"{_fmt(o['bbox_area_frac'], '.0%'):>11}{_fmt(o['latency_ms_mean'], '.3f'):>8}"
         )
     return "\n".join(lines)
 

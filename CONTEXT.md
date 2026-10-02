@@ -84,5 +84,6 @@ _Avoid_: fine stage, CSI model, refinement step
 
 **Mode**:
 Per-window label, `sniper` or `fallback`, recording whether the Sniper ran or
-the Scout's center was used; its rate is a reported metric.
+the Scout's estimate (the mean of its most probable kernel) was used; its
+rate is a reported metric.
 _Avoid_: status, path, branch

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -123,6 +124,25 @@ def test_above_floor_rate_follows_floor(session, tmp_path, floor, rate):
     summary, meta, _ = _run(outdir, tmp_path, rssi_floor_dbm=floor)
     assert meta["rssi_floor_dbm"] == floor
     assert summary["anchor_windows"]["above_floor_rate"] == rate
+
+
+LEGACY_DIR = Path(__file__).parent / "fixtures" / "legacy"
+
+
+def test_legacy_capture_preprocesses(tmp_path):
+    # Pi-era two-Anchor excerpt; format semantics only, not physical values.
+    summary, _, features = _run(LEGACY_DIR, tmp_path, min_anchors=2)
+
+    assert summary["parse"]["csi_records"] == 200
+    assert summary["parse"]["malformed"] == 3
+    assert features
+    assert all(f["anchors"]["A3"] is None and f["anchors"]["A4"] is None
+               for f in features)
+    assert any(f["sufficient"] for f in features)  # some MAC heard by A1 and A2
+    present = [a for f in features for a in f["anchors"].values() if a]
+    assert all("stability" in a and "above_floor" in a for a in present)
+    # 02:ab:cd:00:00:02 has several Records per second: stability is defined.
+    assert any(a["stability"] is not None for a in present)
 
 
 def test_cli_rssi_floor_reaches_meta(session, tmp_path):

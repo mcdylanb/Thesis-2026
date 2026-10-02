@@ -1,4 +1,11 @@
-"""Parsers for firmware CSV lines and gateway_logger.py capture files.
+"""Parsers for firmware CSV lines and Capture files.
+
+Two Capture formats are read, detected from the header row:
+
+- logger: ``host_iso,host_ns,line`` (gateway_logger.py, relay_udp_listener.py);
+- legacy: ``host_iso,host_ns,type,anchor_id,seq,mac,rssi,channel,len,csi_payload``
+  (``scripts/uart_listener_2.py``, as run on the Pi-era Gateway). It has no
+  sig_mode or timestamp_us, so both read as 0, and MACs are uppercase.
 
 ``parse_firmware_line`` is a pure function on a single line so the same
 code path serves logged files today and a live serial/UDP reader later
@@ -25,6 +32,8 @@ MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
 
 CSI_HEADER_FIELDS = 9   # CSI,anchor,seq,mac,rssi,sig_mode,channel,timestamp_us,n_sub
 STAT_FIELDS = 8         # STAT,anchor,uptime_ms,pkts_seen,csi_cb_count,queued,dropped,free_heap
+LEGACY_HEADER = ["host_iso", "host_ns", "type", "anchor_id", "seq", "mac",
+                 "rssi", "channel", "len", "csi_payload"]
 
 
 @dataclass(frozen=True)
@@ -112,22 +121,43 @@ def _parse_host_iso(value: str) -> float:
     return datetime.fromisoformat(value).timestamp()
 
 
+def _legacy_row_to_line(row: List[str]) -> Optional[str]:
+    """A legacy Capture row's firmware line, or None if the row is malformed.
+    CSI rows gain sig_mode=0 and timestamp_us=0 so ``parse_firmware_line``
+    validates both formats alike; the Pi-era listener wrote any other line
+    verbatim after the two host columns."""
+    if len(row) < 3:
+        return None
+    if row[2] != "CSI":
+        return ",".join(row[2:])
+    if len(row) != len(LEGACY_HEADER):
+        return None
+    _, _, _, anchor, seq, mac, rssi, channel, n_sub, payload = row
+    return f"CSI,{anchor},{seq},{mac},{rssi},0,{channel},0,{n_sub},{payload}"
+
+
 def iter_logged_records(
     path: Union[str, Path], stats: ParseStats
 ) -> Iterator[Union[CsiRecord, StatRecord]]:
-    """Read one gateway_logger.py output file (host_iso,host_ns,line)."""
+    """Read one Capture file in either format (see module docstring)."""
+    legacy = False
     with open(path, newline="") as fh:
         reader = csv.reader(fh)
         for row in reader:
             if not row:
                 continue
             if row[0] == "host_iso":  # header
+                legacy = row == LEGACY_HEADER
                 continue
             stats.total_rows += 1
-            if len(row) != 3:
+            if legacy:
+                line = _legacy_row_to_line(row)
+            else:
+                line = row[2] if len(row) == 3 else None
+            if line is None:
                 stats.note_malformed(",".join(row))
                 continue
-            host_iso, host_ns_s, line = row
+            host_iso, host_ns_s = row[0], row[1]
 
             payload = parse_firmware_line(line)
             if payload is None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from datetime import datetime, timezone
 
 import pytest
@@ -55,3 +57,7 @@ def csi_line():
 @pytest.fixture
 def stat_line():
     return make_stat_line()
+
+
+# Trimmed Pi-era legacy Capture (2026-08-28 A1/A2, MACs anonymised).
+LEGACY_DIR = Path(__file__).parent / "fixtures" / "legacy"

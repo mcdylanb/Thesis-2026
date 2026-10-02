@@ -96,3 +96,16 @@ def test_state_tracks_seq_gaps_and_rate():
     assert st.seq_gaps == 2
     assert st.rate_hz(horizon_s=5.0) == 2 / 5.0
     assert st.smoothed().shape == st.clean.shape
+
+
+def test_payload_from_row_reads_legacy_capture_rows():
+    # Tailing a live file never sees the header, so the legacy format is
+    # recognised from the row's shape. Values hand-read from the fixture.
+    fixture = Path(__file__).parent / "fixtures" / "legacy" / "A1_20260828_140440.csv"
+    rows = fixture.read_text().splitlines(keepends=True)
+    assert dash.payload_from_row(rows[0]) is None  # header
+    payload, t_host = dash.payload_from_row(rows[1])
+    assert (payload.anchor, payload.seq, payload.mac, payload.rssi) == (
+        "A1", 1329, "02:ab:cd:00:00:01", -86)
+    assert payload.amps_hw.shape == (64,)
+    assert t_host == datetime(2026, 8, 28, 6, 40, 25, 832231, timezone.utc).timestamp()

@@ -1,0 +1,6 @@
+{
+  "_comment": "gateway.sim --noise override with every random term off (shadowing, RSSI jitter, CSI noise). RSSI and CSI are still rounded to integers as on the wire. Used for the #26 noiseless baseline check.",
+  "rssi_shadowing_db": 0.0,
+  "rssi_jitter_db": 0.0,
+  "csi_noise": 0.0
+}

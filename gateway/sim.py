@@ -48,6 +48,7 @@ Ambient devices from the layout transmit in every Trial.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import sys
 import zlib
@@ -70,7 +71,8 @@ CORRUPT_HW_INDEX = 1
 CORRUPT_LEVEL = 3.0
 INTRA_BURST_S = 0.05
 MIN_DISTANCE_M = 0.1
-HELD_OUT_MIN_M = 0.3
+HELD_OUT_MIN_M = 0.3   # Test position clearance from every Reference point
+ZONE_EDGE_MIN_M = 0.3  # Test position clearance from internal zone edges
 RSSI_FLOOR_DBM = -80.0
 
 DEFAULT_PHYSICS = {
@@ -113,6 +115,7 @@ class Layout:
     test_positions: Dict[str, Point]
     devices: Dict[str, Device]
     physics: Dict[str, float] = field(default_factory=dict)
+    zones: Dict[str, Tuple[float, float, float, float]] = field(default_factory=dict)
     path: Optional[Path] = None
 
 
@@ -139,6 +142,7 @@ def load_layout(path: Path) -> Layout:
         test_positions={p: _point(v) for p, v in raw["test_positions"].items()},
         devices=devices,
         physics={**DEFAULT_PHYSICS, **raw.get("physics", {})},
+        zones={z: tuple(float(v) for v in r) for z, r in raw.get("zones", {}).items()},
         path=path,
     )
     _validate(layout)
@@ -167,6 +171,46 @@ def _validate(layout: Layout) -> None:
     for name, d in layout.devices.items():
         if d.mode not in ("steady", "sporadic"):
             raise ValueError(f"device {name}: unknown mode {d.mode!r}")
+    if layout.zones:
+        _validate_zones(layout)
+
+
+def _validate_zones(layout: Layout) -> None:
+    """Zones must lie inside the room and tile it: no overlap, no gap."""
+    rects = list(layout.zones.items())
+    for name, (x0, y0, x1, y1) in rects:
+        if not (0 <= x0 < x1 <= layout.width_m and 0 <= y0 < y1 <= layout.height_m):
+            raise ValueError(f"zone {name} is empty or outside the room")
+    for (a, ra), (b, rb) in itertools.combinations(rects, 2):
+        overlap_x = min(ra[2], rb[2]) - max(ra[0], rb[0])
+        overlap_y = min(ra[3], rb[3]) - max(ra[1], rb[1])
+        if overlap_x > 1e-9 and overlap_y > 1e-9:
+            raise ValueError(f"zones {a} and {b} overlap")
+    area = sum((x1 - x0) * (y1 - y0) for _, (x0, y0, x1, y1) in rects)
+    if abs(area - layout.width_m * layout.height_m) > 1e-6:
+        raise ValueError("zones leave a gap: they must tile the whole room")
+    for name, (x, y) in layout.test_positions.items():
+        own = zone_of(layout, x, y)
+        for dx, dy in ((ZONE_EDGE_MIN_M, 0), (-ZONE_EDGE_MIN_M, 0),
+                       (0, ZONE_EDGE_MIN_M), (0, -ZONE_EDGE_MIN_M)):
+            nx, ny = x + dx, y + dy
+            inside = 0 <= nx <= layout.width_m and 0 <= ny <= layout.height_m
+            if inside and zone_of(layout, nx, ny) != own:
+                raise ValueError(
+                    f"Test position {name} is within {ZONE_EDGE_MIN_M} m of a zone "
+                    "edge; its zone hit would be a coin flip"
+                )
+
+
+def zone_of(layout: Layout, x: float, y: float) -> Optional[str]:
+    """The zone containing (x, y); a point on a shared edge goes to the zone
+    with the larger coordinate. None if no zones are defined or it is outside."""
+    hits = [
+        (y0, x0, name)
+        for name, (x0, y0, x1, y1) in layout.zones.items()
+        if x0 <= x <= x1 and y0 <= y <= y1
+    ]
+    return max(hits)[2] if hits else None
 
 
 def reference_grid(layout: Layout) -> List[Tuple[str, float, float]]:

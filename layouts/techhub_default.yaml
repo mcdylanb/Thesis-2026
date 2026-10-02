@@ -44,6 +44,20 @@ test_positions:
   P9: [4.0, 5.0]
   P10: [7.0, 5.0]
 
+# Coarse zones for the zone-accuracy metric (ADR-0003: >= ~90 % target).
+# Rectangles [x0, y0, x1, y1] that must tile the room exactly; a point on a
+# shared edge belongs to the zone with the larger coordinate. Every Test
+# position must be >= 0.3 m from an internal zone edge (else its zone hit
+# is a coin flip); the loader enforces it. Placeholder 3 x 2 split, split
+# at y = 3.5 because P5-P7 sit on y = 3 — redraw to match TechHub's areas.
+zones:
+  Z1: [0.0, 0.0, 2.7, 3.5]
+  Z2: [2.7, 0.0, 5.3, 3.5]
+  Z3: [5.3, 0.0, 8.0, 3.5]
+  Z4: [0.0, 3.5, 2.7, 6.0]
+  Z5: [2.7, 3.5, 5.3, 6.0]
+  Z6: [5.3, 3.5, 8.0, 6.0]
+
 # Transmitters. mode: steady (fixed rate_hz, the Beacon) or sporadic
 # (ambient IoT: Poisson bursts averaging rate_hz packets/s overall,
 # burst_mean packets per burst). Per-device nuisance makes two devices at the

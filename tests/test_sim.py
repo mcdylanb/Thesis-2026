@@ -22,6 +22,7 @@ from gateway.sim import (
     rssi_mean,
     simulate_session,
     transmit_times,
+    zone_of,
 )
 
 DEFAULT_LAYOUT = Path(__file__).resolve().parents[1] / "layouts" / "techhub_default.yaml"
@@ -251,3 +252,30 @@ def test_test_session_uses_target_device(layout, tmp_path):
     assert target["name"] == "phone"
     assert (target["x"], target["y"]) == layout.test_positions["P6"]
     assert truth["session"] == "test"
+
+
+# --- zones ----------------------------------------------------------------
+
+
+def test_zone_of_maps_every_test_position(layout):
+    assert set(layout.zones) == {f"Z{i}" for i in range(1, 7)}
+    assert zone_of(layout, 0.0, 0.0) == "Z1"
+    assert zone_of(layout, 8.0, 6.0) == "Z6"            # far corner belongs too
+    for x, y in layout.test_positions.values():
+        assert zone_of(layout, x, y) in layout.zones
+
+
+def test_zones_that_leave_a_gap_are_rejected(tmp_path):
+    text = DEFAULT_LAYOUT.read_text().replace("Z6: [5.3, 3.5, 8.0, 6.0]", "Z6: [5.3, 3.5, 7.0, 6.0]")
+    path = tmp_path / "gap.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match="zone"):
+        load_layout(path)
+
+
+def test_test_position_on_a_zone_edge_is_rejected(tmp_path):
+    text = DEFAULT_LAYOUT.read_text().replace("P6: [4.0, 3.0]", "P6: [4.0, 3.4]")
+    path = tmp_path / "edge.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match="P6.*zone edge"):
+        load_layout(path)

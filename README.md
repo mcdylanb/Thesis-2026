@@ -93,6 +93,7 @@ make synth                                          # synthetic Trial in synth_d
 make preprocess DATA=synth_data OUT=out/synth.jsonl
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
 make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
+make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
 ```
 
 Options (device list, window length, min anchors, subcarrier handling):
@@ -112,6 +113,7 @@ copy `gateway/devices.example.yaml`.
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
+| `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |
 | `make thesis` | `cd thesis; latexmk -pdf main.tex` |
 
 `make help` prints the same table.

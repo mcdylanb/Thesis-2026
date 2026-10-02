@@ -16,10 +16,10 @@ UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim eval-baseline preprocess listen capture dashboard replay thesis clean
 
 help:
-	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 setup: ## Create .venv with dev+capture+viz extras | win: uv sync --extra dev --extra capture --extra viz
 	$(UV) sync --extra dev --extra capture --extra viz
@@ -32,6 +32,9 @@ synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gat
 
 sim: ## Simulated calibration + test sessions      | win: uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data
 	$(RUN) python -m gateway.sim --layout $(LAYOUT) --out $(SIM)
+
+eval-baseline: sim ## k-NN baseline on simulated data            | win: run the sim line, then uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval
+	$(RUN) python -m gateway.evaluate --sim $(SIM) --layout $(LAYOUT) --out out/eval
 
 preprocess: ## Windows+features from captures in DATA  | win: uv run python -m gateway --in data --out out/windows.jsonl --summary
 	$(RUN) python -m gateway --in $(DATA) --out $(OUT) --summary

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -56,6 +56,16 @@ def write_jsonl(
         fh.write(json.dumps({"_meta": meta}) + "\n")
         for wf in features:
             fh.write(json.dumps(feature_to_dict(wf, include_csi52)) + "\n")
+
+
+def read_jsonl(path: Union[str, Path]) -> Tuple[dict, List[dict]]:
+    """Read a write_jsonl() file back: (meta, window dicts) — the form the
+    localizers and the evaluation harness consume."""
+    with open(path) as fh:
+        lines = [json.loads(line) for line in fh if line.strip()]
+    if not lines or "_meta" not in lines[0]:
+        raise ValueError(f"{path}: missing _meta header line")
+    return lines[0]["_meta"], lines[1:]
 
 
 def write_parquet(

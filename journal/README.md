@@ -18,4 +18,4 @@ hybrid RSSI–CSI localization system.
 - [20260713](20260713.md) — Firmware (ESP-IDF + Arduino) and gateway preprocessing pipeline built and verified on synthetic data.
 - [20260717](20260717.md) — First real two-anchor hardware capture; CSI debugging; corrupt subcarrier +1 found and fixed.
 - [20260918](20260918.md) — First wireless Anchor → Relay → Gateway capture on the MP700; 921600→115200 fix; Anchor found to be sniffing the Relay itself.
-- [20261002](20261002.md) — Spatial simulator (#25); Radio map, evaluation harness and k-NN baseline (#26): first accuracy number on simulated data; per-Anchor stability score and RSSI-floor flag (#23).
+- [20261002](20261002.md) — Spatial simulator (#25); Radio map, evaluation harness and k-NN baseline (#26): first accuracy number on simulated data; per-Anchor stability score and RSSI-floor flag (#23); legacy Capture reader (#24 part 1); MDN Scout (#27).

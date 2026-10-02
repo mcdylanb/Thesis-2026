@@ -91,6 +91,8 @@ Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial
 make preprocess DATA=data OUT=out/windows.jsonl    # windows + features from Captures
 make synth                                          # synthetic Trial in synth_data/ when you have no hardware
 make preprocess DATA=synth_data OUT=out/synth.jsonl
+make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
+make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
 ```
 
 Options (device list, window length, min anchors, subcarrier handling):
@@ -109,6 +111,7 @@ copy `gateway/devices.example.yaml`.
 | `make capture PORT=COM3` | `uv run python scripts/uart_listener_2.py --port COM3 --outdir data` |
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
+| `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
 | `make thesis` | `cd thesis; latexmk -pdf main.tex` |
 
 `make help` prints the same table.

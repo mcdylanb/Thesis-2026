@@ -8,13 +8,15 @@ RUN     := $(UV) run
 DATA    ?= data
 OUT     ?= out/windows.jsonl
 SYNTH   ?= synth_data
+SIM     ?= sim_data
+LAYOUT  ?= layouts/techhub_default.yaml
 PORT    ?= /dev/ttyUSB0
 BIND_IP ?= 0.0.0.0
 UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim preprocess listen capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -27,6 +29,9 @@ test: ## Run the pytest suite                      | win: uv run pytest
 
 synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gateway.synth --out synth_data
 	$(RUN) python -m gateway.synth --out $(SYNTH)
+
+sim: ## Simulated calibration + test sessions      | win: uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data
+	$(RUN) python -m gateway.sim --layout $(LAYOUT) --out $(SIM)
 
 preprocess: ## Windows+features from captures in DATA  | win: uv run python -m gateway --in data --out out/windows.jsonl --summary
 	$(RUN) python -m gateway --in $(DATA) --out $(OUT) --summary
@@ -46,7 +51,7 @@ replay: ## Play back FILE=data/A1_x.csv offline       | win: uv run python scrip
 thesis: ## Build thesis/main.pdf with latexmk       | win: cd thesis; latexmk -pdf main.tex
 	cd thesis && latexmk -pdf main.tex
 
-clean: ## Remove build outputs and caches          | win: remove .venv, out/, synth_data/, thesis build files by hand
-	rm -rf .venv out $(SYNTH) .pytest_cache
+clean: ## Remove build outputs and caches          | win: remove .venv, out/, synth_data/, sim_data/, thesis build files by hand
+	rm -rf .venv out $(SYNTH) $(SIM) .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 	-cd thesis 2>/dev/null && latexmk -C main.tex

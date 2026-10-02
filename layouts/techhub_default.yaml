@@ -1,0 +1,106 @@
+# Default Trial layout for the spatial simulator (gateway/sim.py, issue #25).
+#
+# PLACEHOLDER GEOMETRY: an 8 x 6 m rectangular room standing in for the
+# TechHub test area until it is surveyed. Replace room size, Anchor and Test
+# position coordinates with measured TechHub numbers (origin and axes as
+# fixed in the thesis appendix, task 1.3) before comparing simulated and real
+# Trials.
+#
+# Coordinates are metres; origin (0, 0) is one room corner, x runs along the
+# width, y along the height. All positions must lie inside the room.
+
+room:
+  width_m: 8.0
+  height_m: 6.0
+
+# Anchors A1..A4, one near each corner, inset 0.3 m from both walls
+# (ADR-0003: placed so every Test position stays above the -80 dBm floor at
+# >= min_anchors Anchors; `python -m gateway.sim` warns if it does not).
+anchors:
+  A1: [0.3, 0.3]
+  A2: [7.7, 0.3]
+  A3: [7.7, 5.7]
+  A4: [0.3, 5.7]
+
+# Reference grid for the Calibration session (ADR-0003: ~1 m spacing).
+# Points run from margin_m to (size - margin_m) in steps of spacing_m and
+# are named R01, R02, ... row by row (x fastest). Here: 8 x 6 = 48 points.
+grid:
+  spacing_m: 1.0
+  margin_m: 0.5
+
+# Held-out Test positions P1..P10 (ADR-0003). They sit on whole-metre
+# coordinates so they are >= 0.7 m from every Reference point; the loader
+# rejects any Test position closer than 0.3 m to a Reference point.
+test_positions:
+  P1: [1.0, 1.0]
+  P2: [4.0, 1.0]
+  P3: [7.0, 1.0]
+  P4: [3.0, 2.0]
+  P5: [2.0, 3.0]
+  P6: [4.0, 3.0]
+  P7: [6.0, 3.0]
+  P8: [1.0, 5.0]
+  P9: [4.0, 5.0]
+  P10: [7.0, 5.0]
+
+# Transmitters. mode: steady (fixed rate_hz, the Beacon) or sporadic
+# (ambient IoT: Poisson bursts averaging rate_hz packets/s overall,
+# burst_mean packets per burst). Per-device nuisance makes two devices at the
+# same spot look different (drives the cross-device Trial, ADR-0003):
+#   tx_offset_db  added to every RSSI reading
+#   gain          multiplies CSI amplitudes (removed by L2 normalization)
+#   tilt          linear spectral tilt, amplitude units per subcarrier
+#                 (D-CFR turns it into a constant; ADR-0002)
+devices:
+  beacon:
+    role: beacon
+    mac: "24:0a:c4:00:be:01"
+    mode: steady
+    rate_hz: 20.0
+    tx_offset_db: 0.0
+    gain: 1.0
+    tilt: 0.0
+  phone:
+    role: target            # the cross-device Trial's transmitter
+    mac: "3c:22:fb:aa:10:07"
+    mode: steady
+    rate_hz: 20.0
+    tx_offset_db: -4.0
+    gain: 0.8
+    tilt: 0.4
+  plug:
+    role: ambient           # present in every Trial at a fixed spot
+    mac: "d8:f1:5b:21:7c:3a"
+    mode: sporadic
+    rate_hz: 0.1
+    burst_mean: 3
+    position: [6.5, 4.5]
+    tx_offset_db: -2.0
+    gain: 1.1
+    tilt: -0.2
+  camera:
+    role: ambient
+    mac: "7c:a7:b0:4e:02:91"
+    mode: sporadic
+    rate_hz: 0.1
+    burst_mean: 3
+    position: [1.5, 4.0]
+    tx_offset_db: 2.0
+    gain: 0.9
+    tilt: 0.3
+
+# Physics defaults (ADR-0002). A characterization noise JSON (--noise) may
+# override any of these keys; see gateway/sim.py.
+physics:
+  rssi_at_1m_dbm: -40.0       # P0 of the log-distance model
+  path_loss_exponent: 2.7     # n
+  rssi_shadowing_db: 3.0      # log-normal shadowing sd, fixed per (Anchor, position)
+  rssi_jitter_db: 2.0         # per-packet RSSI noise sd
+  sensitivity_dbm: -95.0      # packets weaker than this are not received
+  wall_reflection: 0.8        # amplitude reflection coefficient of every wall
+  reflection_order: 4         # image sources up to this many wall bounces
+  phase_wavelength_m: 8.0     # effective wavelength of each path's phase
+                              # (smooth fingerprints at ~1 m grid scale)
+  csi_mean_amplitude: 30.0    # per-frame auto-scaled CSI level (manu_scale = false)
+  csi_noise: 0.8              # per-packet CSI amplitude noise sd

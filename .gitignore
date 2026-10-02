@@ -29,6 +29,7 @@ data/*
 # uv / make outputs
 out/
 synth_data/
+sim_data/
 .pytest_cache/
 
 # macOS

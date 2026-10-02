@@ -13,7 +13,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
@@ -43,6 +43,54 @@ def parse_dropout(spec: str) -> Tuple[str, float, float]:
     anchor, _, span = spec.partition(":")
     lo, _, hi = span.partition("-")
     return anchor, float(lo), float(hi)
+
+
+def write_capture(
+    path: Path,
+    anchor: str,
+    packets: Iterable[Tuple[float, str, int, np.ndarray]],
+    t_session: float,
+    duration_s: float,
+    malformed_frac: float,
+    rng: np.random.Generator,
+) -> Tuple[int, int]:
+    """Write one Anchor's Capture in gateway_logger.py format.
+
+    `packets` are (t_rel_s, mac, rssi_dbm, amps64) in time order, with amps64
+    in hardware order; DC/guard are zeroed and values rounded/clipped to the
+    firmware's range here. A fraction `malformed_frac` of lines is garbled.
+    Ends with one STAT line. Returns (n_lines, n_malformed)."""
+    n_lines = 0
+    n_malformed = 0
+    seq = 0
+    with open(path, "w") as fh:
+        fh.write("host_iso,host_ns,line\n")
+        for t_pkt, mac, rssi, amps in packets:
+            seq += 1
+            t_abs = t_session + t_pkt
+            host_iso = datetime.fromtimestamp(t_abs, timezone.utc).isoformat()
+            host_ns = int(t_abs * 1e9)
+
+            if rng.random() < malformed_frac:
+                line = "CSI,%s,garbled" % anchor
+                n_malformed += 1
+            else:
+                amps = np.array(amps, dtype=np.float64)
+                amps[GUARD_HW_INDICES] = 0
+                amps = np.clip(np.round(amps), 0, 181).astype(int)
+                ts_us = int((t_pkt * 1e6) % 2**32)
+                line = (
+                    f"CSI,{anchor},{seq},{mac},{int(rssi)},1,6,{ts_us},64,"
+                    + ",".join(str(v) for v in amps)
+                )
+            fh.write(f'{host_iso},{host_ns},"{line}"\n')
+            n_lines += 1
+
+        t_end = t_session + duration_s
+        host_iso = datetime.fromtimestamp(t_end, timezone.utc).isoformat()
+        stat = f"STAT,{anchor},{int(duration_s * 1000)},{seq},{seq},{seq},0,180000"
+        fh.write(f'{host_iso},{int(t_end * 1e9)},"{stat}"\n')
+    return n_lines, n_malformed
 
 
 def generate(
@@ -84,51 +132,22 @@ def generate(
     }
 
     for anchor in anchors:
-        path = outdir / f"{anchor}_synth.csv"
-        n_lines = 0
-        n_malformed = 0
-        with open(path, "w") as fh:
-            fh.write("host_iso,host_ns,line\n")
-            seq = 0
-            t = 0.0
-            while t < duration_s:
-                for mac in macs:
-                    seq += 1
-                    t_pkt = t + rng.uniform(0, period * 0.2)
-                    if any(a == anchor and lo <= t_pkt < hi for a, lo, hi in dropouts):
-                        continue
-                    t_abs = t_session + t_pkt
-                    host_iso = datetime.fromtimestamp(t_abs, timezone.utc).isoformat()
-                    host_ns = int(t_abs * 1e9)
+        packets = []
+        t = 0.0
+        while t < duration_s:
+            for mac in macs:
+                t_pkt = t + rng.uniform(0, period * 0.2)
+                if any(a == anchor and lo <= t_pkt < hi for a, lo, hi in dropouts):
+                    continue
+                rssi = int(round(rssi_means[anchor][mac] + rng.normal(0, 2.0)))
+                amps = templates[anchor][mac] + rng.normal(0, 0.8, 64)
+                packets.append((t_pkt, mac, rssi, amps))
+            t += period
 
-                    if rng.random() < malformed_frac:
-                        line = "CSI,%s,garbled" % anchor
-                        n_malformed += 1
-                    else:
-                        rssi = int(
-                            round(rssi_means[anchor][mac] + rng.normal(0, 2.0))
-                        )
-                        amps = templates[anchor][mac] + rng.normal(0, 0.8, 64)
-                        amps[GUARD_HW_INDICES] = 0
-                        amps = np.clip(np.round(amps), 0, 181).astype(int)
-                        ts_us = int((t_pkt * 1e6) % 2**32)
-                        line = (
-                            f"CSI,{anchor},{seq},{mac},{rssi},1,6,{ts_us},64,"
-                            + ",".join(str(v) for v in amps)
-                        )
-                    fh.write(f'{host_iso},{host_ns},"{line}"\n')
-                    n_lines += 1
-                t += period
-
-            # One trailing STAT line per anchor.
-            host_iso = datetime.fromtimestamp(
-                t_session + duration_s, timezone.utc
-            ).isoformat()
-            stat = (
-                f"STAT,{anchor},{int(duration_s * 1000)},{seq},{seq},{seq},0,180000"
-            )
-            fh.write(f'{host_iso},{int((t_session + duration_s) * 1e9)},"{stat}"\n')
-
+        n_lines, n_malformed = write_capture(
+            outdir / f"{anchor}_synth.csv", anchor, packets, t_session,
+            duration_s, malformed_frac, rng,
+        )
         truth["malformed_per_anchor"][anchor] = n_malformed
         truth["lines_per_anchor"][anchor] = n_lines
 

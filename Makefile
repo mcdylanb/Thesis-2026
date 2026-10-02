@@ -10,13 +10,14 @@ OUT     ?= out/windows.jsonl
 SYNTH   ?= synth_data
 SIM     ?= sim_data
 LAYOUT  ?= layouts/techhub_default.yaml
+SIM_MIN_STABILITY ?= 0
 PORT    ?= /dev/ttyUSB0
 BIND_IP ?= 0.0.0.0
 UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim eval eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -32,6 +33,9 @@ synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gat
 
 sim: ## Simulated calibration + test sessions      | win: uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data
 	$(RUN) python -m gateway.sim --layout $(LAYOUT) --out $(SIM)
+
+eval: sim ## k-NN, Scout and proposed side by side   | win: run the sim line, then uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0
+	$(RUN) --extra scout python -m gateway.sniper --sim $(SIM) --layout $(LAYOUT) --out out/eval --min-stability $(SIM_MIN_STABILITY)
 
 eval-baseline: sim ## k-NN baseline on simulated data            | win: run the sim line, then uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval
 	$(RUN) python -m gateway.evaluate --sim $(SIM) --layout $(LAYOUT) --out out/eval

@@ -99,6 +99,7 @@ make sim                                            # simulated calibration + te
 make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
 make eval-scout                                     # same, plus the MDN Scout trained on that radio map (out/eval/scout.json, scout.pt)
+make eval                                           # k-NN, Scout and the proposed Scout -> fallback -> Sniper side by side, with fallback rate and latency (out/eval/proposed.json)
 ```
 
 Options (device list, window length, min anchors, subcarrier handling):
@@ -118,6 +119,7 @@ copy `gateway/devices.example.yaml`.
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
+| `make eval` | run the `make sim` line, then `uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0` |
 | `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |
 | `make eval-scout` | run the `make sim` line, then `uv run --extra scout python -m gateway.scout --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |
 | `make thesis` | `cd thesis; latexmk -pdf main.tex` |

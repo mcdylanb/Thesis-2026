@@ -19,7 +19,11 @@ is the first, and later localizers plug into `evaluate()` unchanged. A
 localizer that also reports a bounding box (the Scout) adds a
 `locate(window) -> {"x", "y", "bbox"} | None` method; the harness then
 scores bbox hit-rate (the box contains the true position) and mean bbox
-area as a fraction of the room.
+area as a fraction of the room. A `locate()` result that carries a `mode`
+(the proposed pipeline's `sniper` / `fallback`) adds the fallback rate:
+fallback windows / windows with an estimate. A localizer with a `reset()`
+method has it called at the start of every Trial, so state carried across
+windows (the Sniper's particles) never crosses Trials.
 """
 
 from __future__ import annotations
@@ -81,6 +85,12 @@ def bbox_metrics(box_hits: Sequence[bool], box_area_fracs: Sequence[float]) -> d
     }
 
 
+def mode_metrics(modes: Sequence[str]) -> dict:
+    """Fallback windows / windows with a Mode; None without Modes."""
+    return {"fallback_rate": float(np.mean([m == "fallback" for m in modes]))
+            if len(modes) else None}
+
+
 def _locate(localizer, window: dict) -> Optional[dict]:
     if hasattr(localizer, "locate"):
         return localizer.locate(window)
@@ -94,13 +104,15 @@ def evaluate(localizer, windows: List[dict], truth: dict, layout: Layout) -> dic
     room_area = layout.width_m * layout.height_m
 
     rows = []
-    pooled: Tuple[list, ...] = ([], [], [], [], [])
+    pooled: Tuple[list, ...] = ([], [], [], [], [], [])
     n_total = 0
     for trial in truth["trials"]:
         device = placed_device(trial)
         tx, ty = device["x"], device["y"]
         true_zone = zone_of(layout, tx, ty)
-        errors, hits, latencies, box_hits, box_areas = [], [], [], [], []
+        errors, hits, latencies, box_hits, box_areas, modes = [], [], [], [], [], []
+        if hasattr(localizer, "reset"):
+            localizer.reset()
         for w in per_trial[trial["id"]]:
             t0 = time.perf_counter()
             loc = _locate(localizer, w)
@@ -114,6 +126,8 @@ def evaluate(localizer, windows: List[dict], truth: dict, layout: Layout) -> dic
                 x0, y0, x1, y1 = loc["bbox"]
                 box_hits.append(x0 <= tx <= x1 and y0 <= ty <= y1)
                 box_areas.append((x1 - x0) * (y1 - y0) / room_area)
+            if loc.get("mode") is not None:
+                modes.append(loc["mode"])
         n = len(per_trial[trial["id"]])
         rows.append({
             "id": trial["id"], "device": device["name"],
@@ -121,15 +135,17 @@ def evaluate(localizer, windows: List[dict], truth: dict, layout: Layout) -> dic
             "n_sufficient": sum(w["sufficient"] for w in per_trial[trial["id"]]),
             **metrics(errors, hits, n, latencies),
             **bbox_metrics(box_hits, box_areas),
+            **mode_metrics(modes),
         })
-        for acc, vals in zip(pooled, (errors, hits, latencies, box_hits, box_areas)):
+        for acc, vals in zip(pooled, (errors, hits, latencies, box_hits, box_areas, modes)):
             acc.extend(vals)
         n_total += n
-    errors, hits, latencies, box_hits, box_areas = pooled
+    errors, hits, latencies, box_hits, box_areas, modes = pooled
     return {
         "trials": rows,
         "overall": {**metrics(errors, hits, n_total, latencies),
-                    **bbox_metrics(box_hits, box_areas)},
+                    **bbox_metrics(box_hits, box_areas),
+                    **mode_metrics(modes)},
     }
 
 
@@ -176,12 +192,16 @@ def _fmt(v: Optional[float], spec: str = ".2f") -> str:
 
 
 def format_table(result: dict) -> str:
-    """Per-Trial table; bbox columns appear when the localizer reports boxes."""
+    """Per-Trial table; bbox columns appear when the localizer reports
+    boxes, a fallback column when it reports Modes."""
     boxes = result["overall"]["bbox_hit_rate"] is not None
+    modes = result["overall"].get("fallback_rate") is not None
     head = (f"{'Trial':<8}{'zone':<6}{'win':>5}{'avail':>7}{'MAE':>7}{'RMSE':>7}"
             f"{'median':>8}{'p90':>7}{'zone acc':>10}{'ms/win':>8}")
     if boxes:
         head += f"{'bbox hit':>10}{'bbox area':>11}"
+    if modes:
+        head += f"{'fallback':>10}"
     lines = [head, "-" * len(head)]
     for row in result["trials"] + [dict(result["overall"], id="overall", zone="")]:
         line = (
@@ -193,6 +213,8 @@ def format_table(result: dict) -> str:
         if boxes:
             line += (f"{_fmt(row['bbox_hit_rate'], '.0%'):>10}"
                      f"{_fmt(row['bbox_area_frac'], '.0%'):>11}")
+        if modes:
+            line += f"{_fmt(row['fallback_rate'], '.0%'):>10}"
         lines.append(line)
     return "\n".join(lines)
 
@@ -200,7 +222,8 @@ def format_table(result: dict) -> str:
 def format_comparison(results: dict) -> str:
     """One overall row per localizer, e.g. {"k-NN": ..., "Scout": ...}."""
     head = (f"{'localizer':<11}{'avail':>7}{'MAE':>7}{'median':>8}{'p90':>7}"
-            f"{'zone acc':>10}{'bbox hit':>10}{'bbox area':>11}{'ms/win':>8}")
+            f"{'zone acc':>10}{'bbox hit':>10}{'bbox area':>11}{'fallback':>10}"
+            f"{'ms/win':>8}")
     lines = [head, "-" * len(head)]
     for name, result in results.items():
         o = result["overall"]
@@ -208,7 +231,8 @@ def format_comparison(results: dict) -> str:
             f"{name:<11}{_fmt(o['availability'], '.0%'):>7}{_fmt(o['mae_m']):>7}"
             f"{_fmt(o['median_m']):>8}{_fmt(o['p90_m']):>7}"
             f"{_fmt(o['zone_accuracy'], '.0%'):>10}{_fmt(o['bbox_hit_rate'], '.0%'):>10}"
-            f"{_fmt(o['bbox_area_frac'], '.0%'):>11}{_fmt(o['latency_ms_mean'], '.3f'):>8}"
+            f"{_fmt(o['bbox_area_frac'], '.0%'):>11}"
+            f"{_fmt(o.get('fallback_rate'), '.0%'):>10}{_fmt(o['latency_ms_mean'], '.3f'):>8}"
         )
     return "\n".join(lines)
 

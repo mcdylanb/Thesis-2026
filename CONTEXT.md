@@ -73,8 +73,8 @@ map; a session is several Trials, never one (ADR-0003).
 _Avoid_: training run, survey, offline phase
 
 **Scout**:
-The coarse localizer: an RSSI model that outputs a bounding box and a center
-estimate (ADR-0002).
+The coarse localizer: an RSSI model that outputs a bounding box and an
+estimate, the mean of its most probable kernel (ADR-0002).
 _Avoid_: coarse stage, RSSI model, first stage
 
 **Sniper**:
@@ -84,5 +84,6 @@ _Avoid_: fine stage, CSI model, refinement step
 
 **Mode**:
 Per-window label, `sniper` or `fallback`, recording whether the Sniper ran or
-the Scout's center was used; its rate is a reported metric.
+the Scout's estimate (the mean of its most probable kernel) was used; its
+rate is a reported metric.
 _Avoid_: status, path, branch

@@ -12,6 +12,7 @@ dependencies = [
 parquet = ["pandas>=1.4", "pyarrow>=8"]
 capture = ["pyserial>=3.5"]   # serial-link listeners under scripts/
 viz = ["matplotlib>=3.7"]     # scripts/live_csi_dashboard.py
+scout = ["torch>=2.2"]     # gateway/scout.py, the MDN Scout (CPU is enough)
 dev = ["pytest>=7"]
 
 [build-system]

@@ -16,16 +16,16 @@ UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim eval-baseline preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
-setup: ## Create .venv with dev+capture+viz extras | win: uv sync --extra dev --extra capture --extra viz
-	$(UV) sync --extra dev --extra capture --extra viz
+setup: ## Create .venv with dev+capture+viz+scout extras | win: uv sync --extra dev --extra capture --extra viz --extra scout
+	$(UV) sync --extra dev --extra capture --extra viz --extra scout
 
-test: ## Run the pytest suite                      | win: uv run pytest
-	$(RUN) pytest
+test: ## Run the pytest suite                      | win: uv run --extra dev --extra scout pytest
+	$(RUN) --extra dev --extra scout pytest
 
 synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gateway.synth --out synth_data
 	$(RUN) python -m gateway.synth --out $(SYNTH)
@@ -35,6 +35,9 @@ sim: ## Simulated calibration + test sessions      | win: uv run python -m gatew
 
 eval-baseline: sim ## k-NN baseline on simulated data            | win: run the sim line, then uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval
 	$(RUN) python -m gateway.evaluate --sim $(SIM) --layout $(LAYOUT) --out out/eval
+
+eval-scout: sim ## MDN Scout next to the k-NN baseline      | win: run the sim line, then uv run --extra scout python -m gateway.scout --sim sim_data --layout layouts/techhub_default.yaml --out out/eval
+	$(RUN) --extra scout python -m gateway.scout --sim $(SIM) --layout $(LAYOUT) --out out/eval
 
 preprocess: ## Windows+features from captures in DATA  | win: uv run python -m gateway --in data --out out/windows.jsonl --summary
 	$(RUN) python -m gateway --in $(DATA) --out $(OUT) --summary

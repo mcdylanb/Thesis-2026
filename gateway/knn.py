@@ -31,6 +31,28 @@ from gateway.radiomap import RadioMap
 RSSI_FLOOR_DBM = -80.0  # ADR-0002 Sniper floor, reused as the imputation value
 
 
+def zscored_rssi(
+    rssi: Dict[str, Optional[float]],
+    anchor_ids: Sequence[str],
+    floor_dbm: float = RSSI_FLOOR_DBM,
+) -> np.ndarray:
+    """Per-Anchor RSSI z-scored over the Anchors present, a missing (None)
+    Anchor imputed at min(floor, weakest present reading) on that scale."""
+    present = {a: rssi[a] for a in anchor_ids if rssi.get(a) is not None}
+    if not present:
+        return np.zeros(len(anchor_ids))
+    values = np.array(list(present.values()), dtype=np.float64)
+    mean, sd = values.mean(), values.std()
+    sd = sd if sd > 0 else 1.0
+    imputed = min(floor_dbm, values.min())
+    return np.array([(present.get(a, imputed) - mean) / sd for a in anchor_ids])
+
+
+def window_rssi(anchors: Dict[str, Optional[dict]]) -> Dict[str, Optional[float]]:
+    """A window's per-Anchor smoothed RSSI, None where the Anchor is absent."""
+    return {a: None if obs is None else obs["rssi"] for a, obs in anchors.items()}
+
+
 def feature_vector(
     anchors: Dict[str, Optional[dict]],
     anchor_ids: Sequence[str],
@@ -39,27 +61,14 @@ def feature_vector(
 ) -> np.ndarray:
     """ADR-0002 baseline vector for one window's (or Reference point's)
     per-Anchor observations, each {"rssi": float, "dcfr": list | None} or None."""
-    present = {}
     dcfr_blocks: List[np.ndarray] = []
     for a in anchor_ids:
         obs = anchors.get(a)
-        if obs is not None:
-            present[a] = obs["rssi"]
         d = None if obs is None else obs.get("dcfr")
         d = np.zeros(n_dcfr) if d is None else np.asarray(d, dtype=np.float64)
         dcfr_blocks.append(d - d.mean())
 
-    if present:
-        values = np.array(list(present.values()), dtype=np.float64)
-        mean, sd = values.mean(), values.std()
-        sd = sd if sd > 0 else 1.0
-        imputed = min(floor_dbm, values.min())
-        z = np.array([
-            ((present[a] if a in present else imputed) - mean) / sd
-            for a in anchor_ids
-        ])
-    else:
-        z = np.zeros(len(anchor_ids))
+    z = zscored_rssi(window_rssi(anchors), anchor_ids, floor_dbm)
     dcfr = np.concatenate(dcfr_blocks)
     return np.concatenate([z / np.sqrt(len(z)), dcfr / np.sqrt(len(dcfr))])
 

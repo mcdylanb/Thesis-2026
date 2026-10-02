@@ -42,9 +42,13 @@ laptop turns the stream into localization features. Terms are defined in
 Then, from the repo root:
 
 ```sh
-make setup        # uv sync --extra dev --extra capture --extra viz
+make setup        # uv sync --extra dev --extra capture --extra viz --extra scout
 make test         # full pytest suite should pass
 ```
+
+The `scout` extra is PyTorch (CPU is enough), used only by the MDN Scout
+(`gateway/scout.py`); outside uv, `pip install '.[scout]'`. `make test`
+installs it; a plain `pytest` run without it skips the Scout's tests.
 
 Windows teammates run the Python side natively (serial ports are `COMx`), not in WSL.
 
@@ -94,6 +98,7 @@ make preprocess DATA=synth_data OUT=out/synth.jsonl
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
 make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
+make eval-scout                                     # same, plus the MDN Scout trained on that radio map (out/eval/scout.json, scout.pt)
 ```
 
 Options (device list, window length, min anchors, subcarrier handling):
@@ -104,8 +109,8 @@ copy `gateway/devices.example.yaml`.
 
 | `make` target | PowerShell |
 |---|---|
-| `make setup` | `uv sync --extra dev --extra capture --extra viz` |
-| `make test` | `uv run pytest` |
+| `make setup` | `uv sync --extra dev --extra capture --extra viz --extra scout` |
+| `make test` | `uv run --extra dev --extra scout pytest` |
 | `make listen` | `uv run python scripts/relay_udp_listener.py --outdir data` |
 | `make dashboard` | `uv run python scripts/live_csi_dashboard.py --data data --anchor A1` |
 | `make replay FILE=data/A1_x.csv` | `uv run python scripts/live_csi_dashboard.py --file data/A1_x.csv --from-start --replay-rate 6` |
@@ -114,6 +119,7 @@ copy `gateway/devices.example.yaml`.
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
 | `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |
+| `make eval-scout` | run the `make sim` line, then `uv run --extra scout python -m gateway.scout --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |
 | `make thesis` | `cd thesis; latexmk -pdf main.tex` |
 
 `make help` prints the same table.

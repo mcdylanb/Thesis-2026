@@ -6,8 +6,9 @@ usable subcarriers) plus what the MATLAB version lacked: an RSSI trace and a
 per-source-MAC frame counter, so a Capture dominated by the wrong transmitter
 (e.g. the Relay's own UDP traffic) is obvious within seconds.
 
-Reads the ``host_iso,host_ns,line`` rows that ``make listen`` / ``make capture``
-write, via the same ``gateway.parser`` the preprocessing pipeline uses.
+Reads Capture rows in either format ``gateway.parser`` knows (the logger's
+``host_iso,host_ns,line`` and the Pi-era 10-column legacy format), via the
+same parser the preprocessing pipeline uses.
 
     make dashboard                 # newest data/A1_*.csv
     make dashboard ANCHOR=A2
@@ -34,7 +35,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from gateway.csi import remap_hw64_to_usable, usable_subcarriers  # noqa: E402
-from gateway.parser import CsiPayload, parse_firmware_line  # noqa: E402
+from gateway.parser import (  # noqa: E402
+    LEGACY_HEADER, CsiPayload, legacy_row_to_line, parse_firmware_line,
+)
 
 N_HW = 64
 CLIM = (0, 60)  # amplitude colour range, matches the MATLAB dashboard
@@ -62,16 +65,24 @@ def read_new_lines(fh: IO[str], limit: Optional[int] = None) -> Iterator[str]:
 
 
 def payload_from_row(row: str) -> Optional[Tuple[CsiPayload, float]]:
-    """``host_iso,host_ns,"CSI,..."`` -> (CsiPayload, t_host epoch seconds), or
-    None for STAT / header / malformed rows."""
+    """One Capture row in either format -> (CsiPayload, t_host epoch
+    seconds), or None for STAT / header / malformed rows. A tailed file is
+    read from its end, so the format comes from the row's width, not the
+    header: 3 columns is the logger format, 10 the Pi-era legacy one."""
     try:
         fields = next(csv.reader([row]))
-        if len(fields) != 3:
+        if len(fields) == 3:
+            line = fields[2]
+        elif len(fields) == len(LEGACY_HEADER):
+            line = legacy_row_to_line(fields)
+        else:
             return None
         t_host = datetime.fromisoformat(fields[0]).timestamp()
     except (csv.Error, StopIteration, ValueError):
         return None
-    payload = parse_firmware_line(fields[2])
+    if line is None:
+        return None
+    payload = parse_firmware_line(line)
     return (payload, t_host) if isinstance(payload, CsiPayload) else None
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -11,6 +10,7 @@ import pytest
 from gateway.csi import dcfr, normalize, remap_hw64_to_usable
 from gateway.preprocess import PreprocessConfig, main, run
 from gateway.synth import generate
+from tests.conftest import LEGACY_DIR
 
 
 @pytest.fixture(scope="module")
@@ -126,7 +126,6 @@ def test_above_floor_rate_follows_floor(session, tmp_path, floor, rate):
     assert summary["anchor_windows"]["above_floor_rate"] == rate
 
 
-LEGACY_DIR = Path(__file__).parent / "fixtures" / "legacy"
 
 
 def test_legacy_capture_preprocesses(tmp_path):

@@ -121,7 +121,7 @@ def _parse_host_iso(value: str) -> float:
     return datetime.fromisoformat(value).timestamp()
 
 
-def _legacy_row_to_line(row: List[str]) -> Optional[str]:
+def legacy_row_to_line(row: List[str]) -> Optional[str]:
     """A legacy Capture row's firmware line, or None if the row is malformed.
     CSI rows gain sig_mode=0 and timestamp_us=0 so ``parse_firmware_line``
     validates both formats alike; the Pi-era listener wrote any other line
@@ -141,17 +141,20 @@ def iter_logged_records(
 ) -> Iterator[Union[CsiRecord, StatRecord]]:
     """Read one Capture file in either format (see module docstring)."""
     legacy = False
-    with open(path, newline="") as fh:
+    # utf-8-sig: a BOM would otherwise hide the header and the format with it.
+    with open(path, newline="", encoding="utf-8-sig") as fh:
         reader = csv.reader(fh)
         for row in reader:
             if not row:
                 continue
             if row[0] == "host_iso":  # header
+                # Any other header reads as the logger format; a mismatched
+                # legacy file then counts every row malformed, never misread.
                 legacy = row == LEGACY_HEADER
                 continue
             stats.total_rows += 1
             if legacy:
-                line = _legacy_row_to_line(row)
+                line = legacy_row_to_line(row)
             else:
                 line = row[2] if len(row) == 3 else None
             if line is None:

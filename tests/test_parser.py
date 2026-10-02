@@ -13,7 +13,7 @@ from gateway.parser import (
     parse_firmware_line,
 )
 from gateway.records import CsiRecord, ParseStats, StatRecord
-from tests.conftest import make_csi_line, make_logged_row, make_stat_line
+from tests.conftest import LEGACY_DIR, make_csi_line, make_logged_row, make_stat_line
 
 
 def test_valid_csi_line_fields():
@@ -108,7 +108,6 @@ def test_truncated_last_line_skipped(tmp_path):
 
 # Trimmed, MAC-anonymised excerpt of the 2026-08-28 Pi-era Captures
 # (host_iso,host_ns,type,anchor_id,seq,mac,rssi,channel,len,csi_payload).
-LEGACY_DIR = Path(__file__).parent / "fixtures" / "legacy"
 LEGACY_A1 = LEGACY_DIR / "A1_20260828_140440.csv"
 
 
@@ -133,7 +132,7 @@ def test_legacy_capture_first_record():
     assert first.amps_hw[11] == pytest.approx(np.sqrt(130))
 
 
-def test_legacy_session_counts_truncated_payloads_as_malformed():
+def test_legacy_captures_count_truncated_payloads_as_malformed():
     csi, stat, stats = load_session([LEGACY_DIR])
 
     # 109 + 94 rows; three have payloads cut short (85, 86 and 90 values).
@@ -194,3 +193,23 @@ def test_legacy_and_logger_captures_load_together(tmp_path):
     assert [(r.anchor, r.t_host) for r in csi] == [("A2", 1787899224.0), ("A1", 1787899225.0)]
     assert [r.sig_mode for r in csi] == [1, 0]
     assert stats.csi == 2 and stats.malformed == 0
+
+
+def test_legacy_header_with_byte_order_mark_is_detected(tmp_path):
+    # Files saved from Excel / Windows editors start with a UTF-8 BOM.
+    path = tmp_path / "A1_bom.csv"
+    path.write_bytes(b"\xef\xbb\xbf" + LEGACY_A1.read_bytes())
+    stats = ParseStats()
+    records = list(iter_logged_records(path, stats))
+    assert stats.csi == len(records) > 0
+
+
+def test_unrecognised_header_falls_back_to_logger_format(tmp_path):
+    # A legacy file with a renamed column is not guessed at: it reads as the
+    # logger format, so every row is counted malformed rather than misread.
+    lines = LEGACY_A1.read_text().splitlines()
+    path = tmp_path / "A1_renamed.csv"
+    path.write_text("\n".join([lines[0].replace("anchor_id", "anchor")] + lines[1:]) + "\n")
+    stats = ParseStats()
+    assert list(iter_logged_records(path, stats)) == []
+    assert stats.malformed == stats.total_rows == len(lines) - 1

@@ -18,7 +18,7 @@ from typing import List, Optional
 from gateway import __version__
 from gateway.csi import hw_to_usable_indices, usable_subcarriers
 from gateway.devices import DeviceRegistry
-from gateway.features import build_window_features
+from gateway.features import DEFAULT_RSSI_FLOOR_DBM, build_window_features
 from gateway.io import print_summary, summarize, write_jsonl, write_parquet
 from gateway.parser import load_session
 from gateway.windowing import assign_windows
@@ -37,6 +37,7 @@ class PreprocessConfig:
     rssi_method: str = "ewma"
     ewma_alpha: float = 0.3
     csi_norm: str = "l2"
+    rssi_floor_dbm: float = DEFAULT_RSSI_FLOOR_DBM
     drop_first_pos: bool = True
     fmt: str = "jsonl"
     include_csi52: bool = False
@@ -73,6 +74,7 @@ def run(cfg: PreprocessConfig) -> dict:
         rssi_params=rssi_params,
         csi_norm=cfg.csi_norm,
         hw_indices=hw_indices,
+        rssi_floor=cfg.rssi_floor_dbm,
     )
 
     meta = {
@@ -85,6 +87,7 @@ def run(cfg: PreprocessConfig) -> dict:
         "rssi_method": cfg.rssi_method,
         "rssi_params": rssi_params,
         "csi_norm": cfg.csi_norm,
+        "rssi_floor_dbm": cfg.rssi_floor_dbm,
         "drop_first_pos": cfg.drop_first_pos,
         "n_usable_subcarriers": len(usable_subcarriers(cfg.drop_first_pos)),
         "n_dcfr": len(usable_subcarriers(cfg.drop_first_pos)) - 1,
@@ -118,6 +121,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
                     default="ewma", dest="rssi_method")
     ap.add_argument("--ewma-alpha", type=float, default=0.3)
     ap.add_argument("--csi-norm", choices=("l2", "center", "none"), default="l2")
+    ap.add_argument("--rssi-floor", type=float, default=DEFAULT_RSSI_FLOOR_DBM,
+                    help="Sniper RSSI floor in dBm; an anchor-window is flagged "
+                         f"above_floor when its RSSI is strictly above it "
+                         f"(default {DEFAULT_RSSI_FLOOR_DBM:g})")
     ap.add_argument("--keep-first-subcarrier", action="store_true",
                     help="keep subcarrier +1 (textbook 52 usable / 51 D-CFR); "
                          "default drops it as hardware-invalid (51 / 50)")
@@ -145,6 +152,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         rssi_method=args.rssi_method,
         ewma_alpha=args.ewma_alpha,
         csi_norm=args.csi_norm,
+        rssi_floor_dbm=args.rssi_floor,
         drop_first_pos=not args.keep_first_subcarrier,
         fmt=args.fmt,
         include_csi52=args.include_csi52,

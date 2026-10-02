@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence
 
-from gateway.csi import dcfr, process_window_csi
+from gateway.csi import aggregate, dcfr, dcfr_stability, valid_spectra
 from gateway.devices import DeviceRegistry
 from gateway.records import AnchorFeature, CsiRecord, WindowFeature
 from gateway.rssi import smooth_series
 from gateway.windowing import WindowGroups, is_sufficient
+
+# Sniper RSSI floor (ADR-0002 fallback rule): an Anchor counts only when its
+# smoothed window RSSI is strictly above this.
+DEFAULT_RSSI_FLOOR_DBM = -80.0
 
 
 def build_anchor_feature(
@@ -17,21 +21,23 @@ def build_anchor_feature(
     rssi_params: Optional[dict] = None,
     csi_norm: str = "l2",
     hw_indices=None,
+    rssi_floor: float = DEFAULT_RSSI_FLOOR_DBM,
 ) -> AnchorFeature:
     rssi_raw = [r.rssi for r in records]
     smoothed = smooth_series(rssi_raw, rssi_method, **(rssi_params or {}))
     rssi_value = float(smoothed.mean())
 
-    csi52, csi_n = process_window_csi(
-        [r.amps_hw for r in records], csi_norm, hw_indices
-    )
+    spectra = valid_spectra([r.amps_hw for r in records], csi_norm, hw_indices)
+    csi52 = aggregate(spectra, "median") if spectra else None
     return AnchorFeature(
         n_pkts=len(records),
         rssi_raw=rssi_raw,
         rssi=rssi_value,
-        csi_n=csi_n,
+        csi_n=len(spectra),
         csi52=csi52,
         dcfr=dcfr(csi52) if csi52 is not None else None,
+        stability=dcfr_stability([dcfr(h) for h in spectra]),
+        above_floor=rssi_value > rssi_floor,
     )
 
 
@@ -47,6 +53,7 @@ def build_window_features(
     rssi_params: Optional[dict] = None,
     csi_norm: str = "l2",
     hw_indices=None,
+    rssi_floor: float = DEFAULT_RSSI_FLOOR_DBM,
 ) -> List[WindowFeature]:
     features: List[WindowFeature] = []
     for (window_id, mac), per_anchor in sorted(groups.items()):
@@ -54,7 +61,7 @@ def build_window_features(
         anchors: Dict[str, Optional[AnchorFeature]] = {a: None for a in anchor_ids}
         for anchor, recs in per_anchor.items():
             anchors[anchor] = build_anchor_feature(
-                recs, rssi_method, rssi_params, csi_norm, hw_indices
+                recs, rssi_method, rssi_params, csi_norm, hw_indices, rssi_floor
             )
         features.append(
             WindowFeature(

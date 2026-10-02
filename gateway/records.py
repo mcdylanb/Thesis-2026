@@ -72,6 +72,8 @@ class AnchorFeature:
     csi_n: int                       # packets whose CSI survived validation
     csi52: Optional[np.ndarray]      # normalized median spectrum, shape (52,)
     dcfr: Optional[np.ndarray]       # shape (51,)
+    stability: Optional[float]       # median pairwise Pearson of per-Record D-CFR
+    above_floor: bool                # smoothed rssi > RSSI floor
 
 
 @dataclass

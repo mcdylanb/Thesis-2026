@@ -21,6 +21,8 @@ def _anchor_dict(feat, include_csi52: bool) -> Optional[dict]:
         "rssi": round(feat.rssi, 2),
         "rssi_raw": feat.rssi_raw,
         "csi_n": feat.csi_n,
+        "stability": None if feat.stability is None else round(feat.stability, 4),
+        "above_floor": feat.above_floor,
         "dcfr": None if feat.dcfr is None else [round(float(v), 6) for v in feat.dcfr],
     }
     if include_csi52:
@@ -107,6 +109,10 @@ def summarize(
     for s in stat_records:
         fw_dropped[s.anchor] = s.dropped
 
+    anchor_feats = [a for f in features for a in f.anchors.values() if a is not None]
+    stabilities = [a.stability for a in anchor_feats if a.stability is not None]
+    above = sum(1 for a in anchor_feats if a.above_floor)
+
     t_span = None
     if features:
         t_span = [
@@ -130,9 +136,25 @@ def summarize(
             "sufficient": sufficient,
             "usable_window_rate": round(sufficient / total, 4) if total else None,
         },
+        "anchor_windows": {
+            "total": len(anchor_feats),
+            "above_floor": above,
+            "above_floor_rate": round(above / len(anchor_feats), 4) if anchor_feats else None,
+            # Undefined = fewer than two valid CSI Records: itself a fallback signal.
+            "stability_undefined": len(anchor_feats) - len(stabilities),
+            "stability": _percentiles(stabilities),
+        },
         "per_device": per_mac,
         "session_span_epoch": t_span,
     }
+
+
+def _percentiles(values: List[float]) -> dict:
+    """p10/p25/p50/p75/p90 of values, plus how many there were."""
+    out: dict = {"n": len(values)}
+    for p in (10, 25, 50, 75, 90):
+        out[f"p{p}"] = round(float(np.percentile(values, p)), 4) if values else None
+    return out
 
 
 def print_summary(summary: dict) -> None:

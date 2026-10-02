@@ -17,7 +17,7 @@ layout (e.g. to match the methodology text verbatim).
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
@@ -102,20 +102,33 @@ def dcfr(h: np.ndarray) -> np.ndarray:
     return np.diff(h)
 
 
-def process_window_csi(
+def dcfr_stability(dcfr_vectors: List[np.ndarray]) -> Optional[float]:
+    """Within-window D-CFR stability (ADR-0002): median pairwise Pearson
+    correlation between the D-CFR vectors of the window's Records. None when
+    fewer than two vectors, since a single Record has nothing to agree with. Pairs
+    involving a constant vector have no defined Pearson and are skipped."""
+    if len(dcfr_vectors) < 2:
+        return None
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rho = np.corrcoef(np.stack(dcfr_vectors))
+    pairs = rho[np.triu_indices(len(dcfr_vectors), k=1)]
+    pairs = pairs[np.isfinite(pairs)]
+    return float(np.median(pairs)) if pairs.size else None
+
+
+def valid_spectra(
     amps_hw_list: List[np.ndarray],
     norm_method: str = "l2",
     hw_indices: Optional[np.ndarray] = None,
-) -> Tuple[Optional[np.ndarray], int]:
-    """Full per-(window, mac, anchor) chain: remap each packet, drop invalid
-    spectra, normalize, aggregate by median. Returns (aggregated spectrum or
-    None, number of packets whose CSI survived validation)."""
+) -> List[np.ndarray]:
+    """Per-(window, mac, anchor) CSI chain: remap each Record's amplitudes,
+    drop invalid spectra, normalize. Returns the surviving spectra in Record
+    order; the caller aggregates them (median) and scores their stability."""
     idx = HW_TO_USABLE if hw_indices is None else hw_indices
     valid = []
     for amps in amps_hw_list:
         csi = remap_hw64_to_usable(amps, idx)
         if is_valid_csi(csi):
             valid.append(normalize(csi, norm_method))
-    if not valid:
-        return None, 0
-    return aggregate(valid, "median"), len(valid)
+    return valid
+

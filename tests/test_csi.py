@@ -8,12 +8,13 @@ from gateway.csi import (
     N_DCFR,
     N_USABLE,
     dcfr,
+    dcfr_stability,
     aggregate,
     hw_to_usable_indices,
     is_valid_csi,
     normalize,
-    process_window_csi,
     remap_hw64_to_usable,
+    valid_spectra,
 )
 
 
@@ -83,16 +84,40 @@ def test_is_valid_csi():
     assert is_valid_csi(np.ones(51))
 
 
-def test_process_window_csi_counts_valid():
+def test_valid_spectra_drops_dead_records():
     good = np.zeros(64)
     good[1:27] = 10
     good[38:] = 10
     dead = np.zeros(64)
-    spectrum, n = process_window_csi([good, dead, good])
-    assert n == 2
-    assert spectrum.shape == (51,)
+    spectra = valid_spectra([good, dead, good])
+    assert len(spectra) == 2
+    assert all(s.shape == (51,) for s in spectra)
 
 
-def test_process_window_csi_all_dead():
-    spectrum, n = process_window_csi([np.zeros(64)])
-    assert spectrum is None and n == 0
+def test_valid_spectra_all_dead():
+    assert valid_spectra([np.zeros(64)]) == []
+
+
+def test_stability_identical_records_is_one():
+    v = np.random.default_rng(0).normal(size=N_DCFR)
+    assert dcfr_stability([v, v.copy(), v.copy()]) == pytest.approx(1.0)
+
+
+def test_stability_uncorrelated_records_is_near_zero():
+    rng = np.random.default_rng(1)
+    vectors = [rng.normal(size=N_DCFR) for _ in range(40)]
+    assert abs(dcfr_stability(vectors)) < 0.05
+
+
+def test_stability_single_record_is_none():
+    assert dcfr_stability([np.ones(N_DCFR)]) is None
+    assert dcfr_stability([]) is None
+
+
+def test_stability_ignores_pairs_with_a_constant_vector():
+    # Pearson is undefined against a zero-variance vector; skip those pairs
+    # rather than letting NaN leak into the JSON output.
+    v = np.random.default_rng(2).normal(size=N_DCFR)
+    flat = np.zeros(N_DCFR)
+    assert dcfr_stability([v, v.copy(), flat]) == pytest.approx(1.0)
+    assert dcfr_stability([flat, flat.copy()]) is None

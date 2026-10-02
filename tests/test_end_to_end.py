@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from gateway.csi import dcfr, normalize, remap_hw64_to_usable
-from gateway.preprocess import PreprocessConfig, run
+from gateway.preprocess import PreprocessConfig, main, run
 from gateway.synth import generate
 
 
@@ -97,3 +97,37 @@ def test_meta_records_run_config(session, tmp_path):
     assert meta["min_anchors"] == 2
     assert meta["csi_norm"] == "l2"
     assert "t0" in meta
+
+
+def test_every_anchor_feature_has_stability_and_floor_flag(session, tmp_path):
+    outdir, _ = session
+    _, _, features = _run(outdir, tmp_path)
+    present = [a for f in features for a in f["anchors"].values() if a]
+    assert present
+    for a in present:
+        assert "stability" in a and "above_floor" in a
+        assert a["stability"] is None or -1.0 <= a["stability"] <= 1.0
+        assert isinstance(a["above_floor"], bool)
+
+
+def test_synthetic_devices_are_stable(session, tmp_path):
+    # Synth packets are a fixed template plus small noise: a stable device.
+    outdir, _ = session
+    summary, _, _ = _run(outdir, tmp_path)
+    assert summary["anchor_windows"]["stability"]["p50"] > 0.6
+
+
+@pytest.mark.parametrize("floor, rate", [(-200.0, 1.0), (0.0, 0.0)])
+def test_above_floor_rate_follows_floor(session, tmp_path, floor, rate):
+    outdir, _ = session
+    summary, meta, _ = _run(outdir, tmp_path, rssi_floor_dbm=floor)
+    assert meta["rssi_floor_dbm"] == floor
+    assert summary["anchor_windows"]["above_floor_rate"] == rate
+
+
+def test_cli_rssi_floor_reaches_meta(session, tmp_path):
+    outdir, _ = session
+    out = tmp_path / "w.jsonl"
+    assert main(["--in", str(outdir), "--out", str(out), "--rssi-floor", "-70"]) == 0
+    meta = json.loads(out.read_text().splitlines()[0])["_meta"]
+    assert meta["rssi_floor_dbm"] == -70.0

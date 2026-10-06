@@ -101,6 +101,49 @@ def test_heartbeat_line_is_counted_and_not_written_to_any_file():
     assert stats.skipped == 0
 
 
+def test_relay_heartbeat_with_diagnostic_fields_is_counted_not_written():
+    """relay.ino's UDP heartbeat carries rx/ch/wifi after the uptime."""
+    anchor_files: dict[str, io.StringIO] = {}
+
+    def open_anchor_file(anchor):
+        raise AssertionError("a heartbeat line has no anchor to route to")
+
+    stats = relay_udp_listener.ListenerStats()
+
+    relay_udp_listener.handle_line(
+        anchor_files,
+        "HEARTBEAT,123456,rx=42,ch=11,wifi=1",
+        host_iso="2026-09-10T00:00:02+00:00",
+        host_ns=3000,
+        stats=stats,
+        open_anchor_file=open_anchor_file,
+    )
+
+    assert anchor_files == {}
+    assert stats.heartbeats == 1
+    assert stats.lines == 0
+
+
+def test_status_line_reports_counts_when_nothing_has_arrived():
+    stats = relay_udp_listener.ListenerStats()
+
+    line = relay_udp_listener.format_status(stats, None)
+
+    assert "lines=0" in line
+    assert "heartbeats=0" in line
+    assert "last_sender=none yet" in line
+
+
+def test_status_line_names_the_last_sender():
+    stats = relay_udp_listener.ListenerStats(lines=3, heartbeats=2)
+
+    line = relay_udp_listener.format_status(stats, "192.168.0.101")
+
+    assert "lines=3" in line
+    assert "heartbeats=2" in line
+    assert "last_sender=192.168.0.101" in line
+
+
 def test_unrecognized_line_is_skipped_not_raised():
     anchor_files: dict[str, io.StringIO] = {}
 

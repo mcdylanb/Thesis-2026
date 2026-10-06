@@ -63,7 +63,7 @@ Open each sketch in Arduino IDE, board **ESP32 Dev Module**, upload speed 115200
    Serial Monitor at 115200 shows `INFO,wifi_connected,ip=…` when it joins.
 2. **Anchors** — `firmware/anchor_arduino_wireless/anchor_arduino_wireless.ino`,
    once per board. Edit `ANCHOR_ID` (`A1`..`A4`), `relay_mac` (the Relay's
-   ESP-NOW MAC, printed on its serial boot banner), and `WIFI_CHANNEL` — it
+   ESP-NOW MAC, printed as `INFO,relay_mac=…` on its serial boot banner), and `WIFI_CHANNEL` — it
    **must equal the trial network's channel**, because joining that network
    locks the Relay's radio to it.
 
@@ -72,14 +72,21 @@ can only be held by one program.
 
 ## Quickstart 2 — Capture (wireless)
 
+First time, or no data? Follow the full
+[wireless capture runbook](docs/wireless-capture-runbook.md). It checks each
+hop (MP700 → Relay → laptop → Anchors → target) before moving on.
+
 1. Power the MP700 (admin `http://192.168.0.1`: 2.4 GHz, fixed channel 11
    — must match the Anchors' `WIFI_CHANNEL`).
 2. Connect the laptop to `TP-Link_40F1` and set IPv4 manually to
    `192.168.0.197` / `255.255.255.0` / router `192.168.0.1`.
 3. Power the Relay and Anchors.
 4. `make listen` — you should see `new anchor A1 -> data/A1_<ts>.csv` and a
-   `lines=… heartbeats=…` counter every 5 s. No lines? The Anchors are on the
-   wrong channel or nothing is transmitting OFDM frames on it.
+   `lines=… heartbeats=… last_sender=…` status line every 5 s, even when
+   nothing arrives. `heartbeats=0` means the Relay can't reach the laptop.
+   Heartbeats with `lines=0` mean the Relay is reachable but no Anchor
+   records are arriving: wrong channel or `relay_mac`, or nothing is
+   transmitting. See the runbook's troubleshooting section.
 5. Live view: `make dashboard` (matplotlib) tails the newest `data/A1_*.csv` —
    CSI heatmaps, RSSI trace and a frames-per-source-MAC bar so you can see
    *who* the Anchor is hearing. `--exclude-mac <Relay MAC>` hides the Relay's

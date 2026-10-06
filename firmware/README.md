@@ -19,7 +19,18 @@ channel — every Anchor's `WIFI_CHANNEL` must match it for ESP-NOW to work.
 The Relay re-emits each Anchor record as the same `CSI,...` / `STAT,...`
 ASCII line over USB serial **and** unicast UDP to `GATEWAY_IP:GATEWAY_PORT`.
 On the Gateway, `make listen` (UDP) or `make capture` (serial) lands them as
-Captures — see the root `README.md`.
+Captures — see the root `README.md`. Step-by-step setup and troubleshooting:
+[`docs/wireless-capture-runbook.md`](../docs/wireless-capture-runbook.md).
+
+Diagnostics on this path:
+- **Relay:** boot prints `INFO,relay_mac=…` and `INFO,wifi_connected,…,channel=…`.
+  Every 2 s it sends `HEARTBEAT,<ms>,rx=<espnow_records>,ch=<n>,wifi=<0|1>`
+  to serial **and** over UDP. The listener counts heartbeats and never writes
+  them to a Capture.
+- **Anchor:** prints `STATUS,<id>,csi=…,sent_ok=…,sent_fail=…,dropped=…,ch=…`
+  every 5 s, on USB serial only. It is never sent to the Relay. The prefix is
+  `STATUS`, not `STAT`, on purpose, so it can't be mistaken for a `STAT,`
+  Record.
 
 ### Anchor CONFIG block (wireless sketch)
 

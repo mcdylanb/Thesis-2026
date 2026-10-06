@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, TextIO
+from typing import Callable, Dict, Optional, TextIO
 
 VALID_PREFIXES = ("CSI,", "STAT,", "HEARTBEAT,")
 
@@ -26,6 +26,19 @@ class ListenerStats:
     lines: int = 0
     heartbeats: int = 0
     skipped: int = 0
+
+
+def format_status(stats: ListenerStats, last_sender: Optional[str]) -> str:
+    """The periodic status line, printed even when nothing arrives.
+
+    heartbeats > 0 with lines == 0 means the Relay reaches this laptop but no
+    Anchor records are coming in; both 0 means nothing reaches the socket.
+    """
+    sender = last_sender or "none yet"
+    return (
+        f"[relay_udp_listener] lines={stats.lines} heartbeats={stats.heartbeats} "
+        f"skipped={stats.skipped} last_sender={sender}"
+    )
 
 
 def format_logged_row(host_iso: str, host_ns: int, line: str) -> str:
@@ -88,6 +101,8 @@ def main() -> None:
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((args.bind_ip, args.port))
+    # Wake up periodically so the status line also prints when nothing arrives.
+    sock.settimeout(1.0)
     print(f"[relay_udp_listener] listening on {args.bind_ip}:{args.port} -> {args.outdir}/")
 
     anchor_files: Dict[str, TextIO] = {}
@@ -99,16 +114,22 @@ def main() -> None:
         return open(outfile, "w", buffering=1)
 
     last_print = time.time()
+    last_sender: Optional[str] = None
     try:
         while True:
-            raw, _addr = sock.recvfrom(4096)
-            host_iso, host_ns = _now()
-            line = raw.decode("ascii", errors="replace")
-            handle_line(anchor_files, line, host_iso, host_ns, stats, open_anchor_file)
+            try:
+                raw, addr = sock.recvfrom(4096)
+            except socket.timeout:
+                pass
+            else:
+                host_iso, host_ns = _now()
+                last_sender = addr[0]
+                line = raw.decode("ascii", errors="replace")
+                handle_line(anchor_files, line, host_iso, host_ns, stats, open_anchor_file)
 
             now = time.time()
             if now - last_print >= 5.0:
-                print(f"[relay_udp_listener] lines={stats.lines} heartbeats={stats.heartbeats} skipped={stats.skipped}")
+                print(format_status(stats, last_sender), flush=True)
                 last_print = now
     except KeyboardInterrupt:
         print("\nstopping.")

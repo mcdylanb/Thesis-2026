@@ -3,142 +3,715 @@
 #include <esp_wifi.h>
 #include <esp_timer.h>
 
-// ==================== CONFIG (edit per Anchor) ====================
-#define ANCHOR_ID        "A1"   // replace with this Anchor's id (A1..A4)
-#define WIFI_CHANNEL     11     // sniff channel
-#define SERIAL_BAUD      115200 // CH340 clones garble 921600
+// ============================================================
+// CONFIGURATION
+// ============================================================
 
-// Esp-Now = 3c:8a:1f:9a:66:8c
-// a1 = 3c:8a:1f:5e:ae:e4
-uint8_t relay_mac[] = {0x68, 0xfe, 0x71, 0xfa, 0xdf, 0xfc}; // replace with the Relay's ESP-NOW MAC address
+#define ANCHOR_ID           "A4"
 
-// Source MACs dropped in csi_rx_cb before they reach ESP-NOW (see
-// firmware/README.md "Anchor CONFIG block"). relay_mac is always dropped;
-// list other never-a-target radios here, e.g. the trial network AP.
-const uint8_t ignore_macs[][6] = {
-  {0x8c, 0x90, 0x2d, 0x19, 0x40, 0xf1}, // MP700 trial network AP (beacons)
+#define WIFI_SSID           "TP-Link_40F1"
+#define WIFI_PASSWORD       "90061962"
+
+#define WIFI_CHANNEL        11
+
+// ESP-NOW receiver / Gateway ESP32 MAC
+// From your receiver output:
+// 3C:8A:1F:9A:66:C8
+uint8_t GATEWAY_MAC[] = {
+  0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0xc8
 };
-#define IGNORE_MACS_N (sizeof(ignore_macs) / sizeof(ignore_macs[0]))
 
-#define FILTER_MASK      (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA)
-#define QUEUE_DEPTH      64
-#define CSI_BUF_MAX      128
-// ======================================================================
+// CSI buffer size expected by your receiver
+#define CSI_BUF_MAX         128
 
-// The lightweight binary struct sent over to ESP-NOW (250 byte limit)
+// Number of CSI packets that can wait in the queue
+#define CSI_QUEUE_LENGTH    8
+
+// Send a simple HELLO packet every few seconds for testing.
+// Set to false after ESP-NOW communication is confirmed.
+#define DEBUG_TEST_ESPNOW   true
+#define TEST_INTERVAL_MS    3000
+
+// ============================================================
+// CSI + ESP-NOW PACKET STRUCTURE
+// MUST MATCH RECEIVER EXACTLY
+// ============================================================
+
 typedef struct __attribute__((packed)) {
-  char     anchor_id[3]; 
+
+  char     anchor_id[3];
+
   uint32_t seq;
+
   uint8_t  mac[6];
+
   int8_t   rssi;
+
   uint8_t  channel;
+
   uint8_t  sig_mode;
+
   uint8_t  len;
+
   uint32_t timestamp_us;
+
   int8_t   buf[CSI_BUF_MAX];
+
 } esp_now_csi_t;
 
-static QueueHandle_t s_queue;
-static volatile uint32_t s_csi_count = 0;
+// ============================================================
+// GLOBAL VARIABLES
+// ============================================================
 
-static inline bool is_ignored_mac(const uint8_t *mac) {
-  // relay_mac is kept separate from ignore_macs: it is non-const and doubles
-  // as the ESP-NOW peer address, so it must always be dropped regardless of
-  // what the ignore list holds.
-  if (memcmp(mac, relay_mac, 6) == 0) return true;
-  for (size_t i = 0; i < IGNORE_MACS_N; i++) {
-    if (memcmp(mac, ignore_macs[i], 6) == 0) return true;
-  }
-  return false;
+QueueHandle_t csiQueue;
+
+uint32_t csiSequence = 0;
+
+volatile uint32_t csiReceivedCount = 0;
+volatile uint32_t csiDroppedCount = 0;
+volatile uint32_t espNowSendCount = 0;
+volatile uint32_t espNowFailCount = 0;
+
+unsigned long lastHeartbeat = 0;
+unsigned long lastTestPacket = 0;
+
+// ============================================================
+// PRINT MAC
+// ============================================================
+
+void printMac(const uint8_t *mac) {
+
+  Serial.printf(
+    "%02X:%02X:%02X:%02X:%02X:%02X",
+    mac[0],
+    mac[1],
+    mac[2],
+    mac[3],
+    mac[4],
+    mac[5]
+  );
 }
 
-// ---------------- Callbacks ----------------
-static void promisc_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
-  // keeping promiscuous active to satisfy radio requirements
+// ============================================================
+// ESP-NOW TEST PACKET
+// ============================================================
+
+void sendTestPacket() {
+
+  const char *msg = "HELLO";
+
+  Serial.print("TEST_TX,to=");
+
+  printMac(GATEWAY_MAC);
+
+  Serial.println();
+
+  esp_err_t result = esp_now_send(
+    GATEWAY_MAC,
+    (const uint8_t *)msg,
+    strlen(msg)
+  );
+
+  Serial.printf(
+    "TEST_TX_RESULT,%s\n",
+    esp_err_to_name(result)
+  );
 }
 
-static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
-  if (!info || !info->buf || info->len == 0) return;
-  if (is_ignored_mac(info->mac)) return;
+// ============================================================
+// CSI CALLBACK
+// ============================================================
+//
+// This is called whenever the ESP32 receives a CSI frame.
+// Keep this callback lightweight.
+// ============================================================
 
-  s_csi_count++;
+void wifi_csi_rx_cb(
+  void *ctx,
+  wifi_csi_info_t *data
+) {
 
-  esp_now_csi_t rec;
-  strcpy(rec.anchor_id, ANCHOR_ID);
-  rec.seq          = s_csi_count;
-  memcpy(rec.mac, info->mac, 6);
-  rec.rssi         = info->rx_ctrl.rssi;
-  rec.channel      = info->rx_ctrl.channel;
-  rec.sig_mode     = info->rx_ctrl.sig_mode;
-  rec.timestamp_us = info->rx_ctrl.timestamp;
-  rec.len          = (info->len > CSI_BUF_MAX) ? CSI_BUF_MAX : info->len;
-  memcpy(rec.buf, info->buf, rec.len);
-
-  xQueueSendFromISR(s_queue, &rec, NULL);
-}
-
-// ---------- ESP-NOW Writer Task ----------
-static void writer_task(void *arg) {
-  esp_now_csi_t rec;
-
-  for (;;) {
-    if (xQueueReceive(s_queue, &rec, pdMS_TO_TICKS(200)) == pdTRUE) {
-      // Blast the binary struct over ESP-NOW
-      esp_now_send(relay_mac, (uint8_t *) &rec, sizeof(esp_now_csi_t));
-    }
-  }
-}
-
-// ---------------- Setup ----------------
-void setup() {
-  Serial.begin(SERIAL_BAUD);
-  s_queue = xQueueCreate(QUEUE_DEPTH, sizeof(esp_now_csi_t));
-
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("ESP-NOW Init Failed");
+  if (data == nullptr) {
     return;
   }
 
-  // Register Relay Peer
-  esp_now_peer_info_t peerInfo = {};
-  memcpy(peerInfo.peer_addr, relay_mac, 6);
-  peerInfo.channel = WIFI_CHANNEL;  
-  peerInfo.encrypt = false;
-  esp_now_add_peer(&peerInfo);
+  if (data->buf == nullptr) {
+    return;
+  }
 
-  esp_wifi_set_ps(WIFI_PS_NONE);
-  
-  wifi_promiscuous_filter_t filter;
-  memset(&filter, 0, sizeof(filter));
-  filter.filter_mask = FILTER_MASK;
-  esp_wifi_set_promiscuous_filter(&filter);
-  esp_wifi_set_promiscuous_rx_cb(promisc_rx_cb);
-  esp_wifi_set_promiscuous(true);
-  esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  if (data->len == 0) {
+    return;
+  }
 
-  wifi_csi_config_t csi_cfg;
-  memset(&csi_cfg, 0, sizeof(csi_cfg));
-  csi_cfg.lltf_en           = true;
-  csi_cfg.htltf_en          = false;
-  csi_cfg.stbc_htltf2_en    = false;
-  csi_cfg.ltf_merge_en      = true;
-  csi_cfg.channel_filter_en = false;
-  csi_cfg.manu_scale        = false;
-  csi_cfg.shift             = 0;
-  csi_cfg.dump_ack_en       = false;
-  esp_wifi_set_csi_config(&csi_cfg);
-  esp_wifi_set_csi_rx_cb(csi_rx_cb, NULL);
-  esp_wifi_set_csi(true);
+  esp_now_csi_t packet = {};
 
-  xTaskCreate(writer_task, "espnow_writer", 4096, NULL, 5, NULL);
+  // ----------------------------------------------------------
+  // Anchor ID
+  // ----------------------------------------------------------
 
-  Serial.printf("INFO,%s,channel=%d,esp_now_mode=ready\n", ANCHOR_ID, WIFI_CHANNEL);
+  strncpy(
+    packet.anchor_id,
+    ANCHOR_ID,
+    sizeof(packet.anchor_id)
+  );
+
+  // ----------------------------------------------------------
+  // Sequence number
+  // ----------------------------------------------------------
+
+  packet.seq = csiSequence++;
+
+  // ----------------------------------------------------------
+  // Source MAC of Wi-Fi frame
+  // ----------------------------------------------------------
+
+  memcpy(
+    packet.mac,
+    data->mac,
+    6
+  );
+
+  // ----------------------------------------------------------
+  // RSSI
+  // ----------------------------------------------------------
+
+  packet.rssi =
+    data->rx_ctrl.rssi;
+
+  // ----------------------------------------------------------
+  // Channel
+  // ----------------------------------------------------------
+
+  packet.channel =
+    data->rx_ctrl.channel;
+
+  // ----------------------------------------------------------
+  // Signal mode
+  // ----------------------------------------------------------
+
+  packet.sig_mode =
+    data->rx_ctrl.sig_mode;
+
+  // ----------------------------------------------------------
+  // Timestamp
+  // ----------------------------------------------------------
+
+  packet.timestamp_us =
+    data->rx_ctrl.timestamp;
+
+  // ----------------------------------------------------------
+  // CSI length
+  // ----------------------------------------------------------
+
+  uint16_t copyLen = data->len;
+
+  if (copyLen > CSI_BUF_MAX) {
+    copyLen = CSI_BUF_MAX;
+  }
+
+  packet.len = (uint8_t)copyLen;
+
+  // ----------------------------------------------------------
+  // CSI BUFFER
+  // ----------------------------------------------------------
+
+  memcpy(
+    packet.buf,
+    data->buf,
+    copyLen
+  );
+
+  // ----------------------------------------------------------
+  // Put packet into queue
+  // ----------------------------------------------------------
+
+  csiReceivedCount++;
+
+  if (xQueueSend(csiQueue, &packet, 0) != pdTRUE) {
+    csiDroppedCount++;
+  }
 }
+
+// ============================================================
+// ESP-NOW SETUP
+// ============================================================
+
+bool setupEspNow() {
+
+  Serial.println("INFO,esp_now_initializing");
+
+  if (esp_now_init() != ESP_OK) {
+
+    Serial.println(
+      "ERROR,esp_now_init_failed"
+    );
+
+    return false;
+  }
+
+  Serial.println(
+    "INFO,esp_now_initialized"
+  );
+
+  // ----------------------------------------------------------
+  // Add Gateway as peer
+  // ----------------------------------------------------------
+
+  esp_now_peer_info_t peerInfo = {};
+
+  memcpy(
+    peerInfo.peer_addr,
+    GATEWAY_MAC,
+    6
+  );
+
+  peerInfo.channel = WIFI_CHANNEL;
+
+  peerInfo.ifidx = WIFI_IF_STA;
+
+  peerInfo.encrypt = false;
+
+  esp_err_t peerResult =
+    esp_now_add_peer(&peerInfo);
+
+  if (peerResult != ESP_OK) {
+
+    Serial.printf(
+      "ERROR,peer_add_failed,%s\n",
+      esp_err_to_name(peerResult)
+    );
+
+    return false;
+  }
+
+  Serial.print(
+    "INFO,peer_added,mac="
+  );
+
+  printMac(GATEWAY_MAC);
+
+  Serial.println();
+
+  return true;
+}
+
+// ============================================================
+// CSI SETUP
+// ============================================================
+
+bool setupCSI() {
+
+  Serial.println(
+    "INFO,csi_initializing"
+  );
+
+  // ----------------------------------------------------------
+  // CSI Configuration
+  // ----------------------------------------------------------
+
+  wifi_csi_config_t csi_config = {};
+
+  csi_config.lltf_en = true;
+
+  csi_config.htltf_en = true;
+
+  csi_config.stbc_htltf2_en = true;
+
+  csi_config.ltf_merge_en = true;
+
+  csi_config.channel_filter_en = true;
+
+  csi_config.manu_scale = false;
+
+  csi_config.shift = 0;
+
+  // ----------------------------------------------------------
+  // Apply CSI configuration
+  // ----------------------------------------------------------
+
+  esp_err_t result =
+    esp_wifi_set_csi_config(
+      &csi_config
+    );
+
+  if (result != ESP_OK) {
+
+    Serial.printf(
+      "ERROR,csi_config_failed,%s\n",
+      esp_err_to_name(result)
+    );
+
+    return false;
+  }
+
+  Serial.println(
+    "INFO,csi_config_ok"
+  );
+
+  // ----------------------------------------------------------
+  // Register CSI callback
+  // ----------------------------------------------------------
+
+  result =
+    esp_wifi_set_csi_rx_cb(
+      wifi_csi_rx_cb,
+      nullptr
+    );
+
+  if (result != ESP_OK) {
+
+    Serial.printf(
+      "ERROR,csi_callback_failed,%s\n",
+      esp_err_to_name(result)
+    );
+
+    return false;
+  }
+
+  Serial.println(
+    "INFO,csi_callback_registered"
+  );
+
+  // ----------------------------------------------------------
+  // Enable CSI
+  // ----------------------------------------------------------
+
+  result =
+    esp_wifi_set_csi(true);
+
+  if (result != ESP_OK) {
+
+    Serial.printf(
+      "ERROR,csi_enable_failed,%s\n",
+      esp_err_to_name(result)
+    );
+
+    return false;
+  }
+
+  Serial.println(
+    "INFO,csi_enabled"
+  );
+
+  return true;
+}
+
+// ============================================================
+// SEND ONE CSI PACKET THROUGH ESP-NOW
+// ============================================================
+
+void sendCsiPacket(
+  const esp_now_csi_t *packet
+) {
+
+  Serial.print(
+    "CSI_TX,seq="
+  );
+
+  Serial.print(
+    packet->seq
+  );
+
+  Serial.print(
+    ",len="
+  );
+
+  Serial.print(
+    packet->len
+  );
+
+  Serial.print(
+    ",rssi="
+  );
+
+  Serial.print(
+    packet->rssi
+  );
+
+  Serial.print(
+    ",channel="
+  );
+
+  Serial.print(
+    packet->channel
+  );
+
+  Serial.print(
+    ",source="
+  );
+
+  printMac(packet->mac);
+
+  Serial.println();
+
+  // ----------------------------------------------------------
+  // Send packet
+  // ----------------------------------------------------------
+
+  esp_err_t result =
+    esp_now_send(
+      GATEWAY_MAC,
+      (const uint8_t *)packet,
+      sizeof(esp_now_csi_t)
+    );
+
+  if (result == ESP_OK) {
+
+    espNowSendCount++;
+
+    Serial.printf(
+      "ESP_NOW_SEND_CALL,SUCCESS,len=%u\n",
+      (unsigned)sizeof(esp_now_csi_t)
+    );
+
+  } else {
+
+    espNowFailCount++;
+
+    Serial.printf(
+      "ESP_NOW_SEND_CALL,FAIL,%s\n",
+      esp_err_to_name(result)
+    );
+  }
+}
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup() {
+
+  Serial.begin(115200);
+
+  delay(1000);
+
+  Serial.println();
+  Serial.println(
+    "========================================"
+  );
+  Serial.println(
+    "ESP32 CSI + ESP-NOW TRANSMITTER"
+  );
+  Serial.println(
+    "========================================"
+  );
+
+  // ----------------------------------------------------------
+  // Create CSI queue
+  // ----------------------------------------------------------
+
+  csiQueue =
+    xQueueCreate(
+      CSI_QUEUE_LENGTH,
+      sizeof(esp_now_csi_t)
+    );
+
+  if (csiQueue == nullptr) {
+
+    Serial.println(
+      "ERROR,csi_queue_creation_failed"
+    );
+
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  Serial.println(
+    "INFO,csi_queue_created"
+  );
+
+  // ----------------------------------------------------------
+  // Wi-Fi Station
+  // ----------------------------------------------------------
+
+  WiFi.mode(WIFI_STA);
+
+  Serial.println(
+    "INFO,wifi_connecting"
+  );
+
+  WiFi.begin(
+    WIFI_SSID,
+    WIFI_PASSWORD
+  );
+
+  while (
+    WiFi.status() != WL_CONNECTED
+  ) {
+
+    delay(250);
+
+    Serial.print(".");
+  }
+
+  Serial.println();
+
+  // ----------------------------------------------------------
+  // Verify Wi-Fi
+  // ----------------------------------------------------------
+
+  Serial.printf(
+    "INFO,wifi_connected,ip=%s\n",
+    WiFi.localIP().toString().c_str()
+  );
+
+  Serial.printf(
+    "INFO,anchor_mac=%s\n",
+    WiFi.macAddress().c_str()
+  );
+
+  Serial.printf(
+    "INFO,wifi_channel=%d\n",
+    WiFi.channel()
+  );
+
+  Serial.printf(
+    "INFO,expected_packet_size=%u\n",
+    (unsigned)sizeof(esp_now_csi_t)
+  );
+
+  // ----------------------------------------------------------
+  // Make sure we're on expected channel
+  // ----------------------------------------------------------
+
+  if (WiFi.channel() != WIFI_CHANNEL) {
+
+    Serial.printf(
+      "WARNING,CHANNEL_MISMATCH,expected=%d,actual=%d\n",
+      WIFI_CHANNEL,
+      WiFi.channel()
+    );
+  }
+
+  // ----------------------------------------------------------
+  // ESP-NOW
+  // ----------------------------------------------------------
+
+  if (!setupEspNow()) {
+
+    Serial.println(
+      "ERROR,esp_now_setup_failed"
+    );
+
+    return;
+  }
+
+  // ----------------------------------------------------------
+  // Promiscuous/sniffer mode
+  // ----------------------------------------------------------
+  //
+  // Espressif recommends promiscuous mode when you want
+  // broader CSI reception rather than only packets received
+  // through the station connection.
+  // ----------------------------------------------------------
+
+  esp_err_t promiscResult =
+    esp_wifi_set_promiscuous(true);
+
+  if (promiscResult != ESP_OK) {
+
+    Serial.printf(
+      "WARNING,promiscuous_enable_failed,%s\n",
+      esp_err_to_name(promiscResult)
+    );
+
+  } else {
+
+    Serial.println(
+      "INFO,promiscuous_enabled"
+    );
+  }
+
+  // ----------------------------------------------------------
+  // CSI
+  // ----------------------------------------------------------
+
+  if (!setupCSI()) {
+
+    Serial.println(
+      "ERROR,csi_setup_failed"
+    );
+
+    return;
+  }
+
+  Serial.println(
+    "INFO,transmitter_ready"
+  );
+}
+
+// ============================================================
+// LOOP
+// ============================================================
 
 void loop() {
-  vTaskDelay(pdMS_TO_TICKS(1000));
-}
 
+  // ----------------------------------------------------------
+  // Handle queued CSI packets
+  // ----------------------------------------------------------
+
+  esp_now_csi_t packet;
+
+  while (
+    xQueueReceive(
+      csiQueue,
+      &packet,
+      0
+    ) == pdTRUE
+  ) {
+
+    sendCsiPacket(&packet);
+  }
+
+  // ----------------------------------------------------------
+  // Debug ESP-NOW test packet
+  // ----------------------------------------------------------
+
+  if (
+    DEBUG_TEST_ESPNOW &&
+    millis() - lastTestPacket >= TEST_INTERVAL_MS
+  ) {
+
+    lastTestPacket = millis();
+
+    sendTestPacket();
+  }
+
+  // ----------------------------------------------------------
+  // Heartbeat
+  // ----------------------------------------------------------
+
+  if (
+    millis() - lastHeartbeat >= 2000
+  ) {
+
+    lastHeartbeat = millis();
+
+    Serial.printf(
+      "HEARTBEAT,%lu,"
+      "wifi=%d,"
+      "channel=%d,"
+      "csi_received=%lu,"
+      "csi_dropped=%lu,"
+      "espnow_sent=%lu,"
+      "espnow_failed=%lu\n",
+
+      lastHeartbeat,
+
+      WiFi.status(),
+
+      WiFi.channel(),
+
+      csiReceivedCount,
+
+      csiDroppedCount,
+
+      espNowSendCount,
+
+      espNowFailCount
+    );
+  }
+
+  delay(1);
+}

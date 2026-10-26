@@ -1,7 +1,8 @@
-# Firmware — Anchors and Relay (ESP32)
+# Firmware — Anchors, Relay and Beacon (ESP32)
 
 Vocabulary follows the root [`CONTEXT.md`](../CONTEXT.md): **Anchors** sniff,
-the **Relay** aggregates, the **Gateway** (laptop) captures and processes.
+the **Relay** aggregates, the **Gateway** (laptop) captures and processes,
+and the **Beacon** is the transmitter they all measure.
 
 ## The wireless chain (what the team flashes today)
 
@@ -13,6 +14,7 @@ Anchor A1..A4 ──ESP-NOW──▶ Relay ──WiFi UDP (trial network)──�
 |---|---|---|
 | Anchor | `anchor_arduino_wireless/anchor_arduino_wireless.ino` | `ANCHOR_ID` (per board); `WIFI_CHANNEL`, `relay_mac`, `ignore_macs` (per trial network) |
 | Relay  | `relay/relay.ino` | `WIFI_SSID`, `WIFI_PASSWORD`, `GATEWAY_IP`, `GATEWAY_PORT` |
+| Beacon | `beacon/beacon.ino` | `WIFI_CHANNEL` (per trial network); `RATE_HZ` (per Trial, optional) |
 
 The Relay joins the trial network, which locks its radio to that network's
 channel — every Anchor's `WIFI_CHANNEL` must match it for ESP-NOW to work.
@@ -51,8 +53,69 @@ trial network's AP here when it changes; never add a target.
 `gateway --devices` / `--mac` still filter at preprocessing time, but only
 this firmware-side drop recovers the airtime.
 
-Flash both with Arduino IDE (**ESP32 Dev Module**, esp32 core 3.x, upload
+Flash all three with Arduino IDE (**ESP32 Dev Module**, esp32 core 3.x, upload
 speed 115200); board-support setup is under "Arduino IDE version" below.
+
+## Beacon firmware — steady OFDM transmitter
+
+The Beacon is the known target for Calibration sessions and test Trials
+(ADR-0003): one ESP32 on a USB power bank that broadcasts a small ESP-NOW
+frame `RATE_HZ` times per second on `WIFI_CHANNEL`, always from the same
+MAC. Every Anchor that hears a frame emits one Record for it, so the Beacon
+is what fills the Radio map at each Reference point. It needs no laptop,
+Relay or trial network: once flashed, it starts transmitting at power-up.
+
+Two details make its frames usable:
+
+- **OFDM rate.** ESP-NOW defaults to 1 Mbps DSSS (802.11b), which has no
+  OFDM training field, so the Anchors' CSI callback would never fire and
+  they would emit no Records at all (see "Known signal caveats" below). The
+  sketch forces HT MCS0, so every frame yields RSSI **and** CSI
+  (`sig_mode` = 1 in the Records).
+- **Broadcast.** Frames go to `ff:ff:ff:ff:ff:ff`, so they are never acked
+  or retried and the rate stays steady.
+
+### Beacon CONFIG block
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `WIFI_CHANNEL` | `11` | Transmit channel; must equal the Anchors' `WIFI_CHANNEL` |
+| `RATE_HZ` | `20` | Frames per second; ≈ 20 Records per Anchor in a 1 s window |
+| `SERIAL_BAUD` | `115200` | USB serial rate for the INFO line |
+| `INFO_INTERVAL_MS` | `5000` | INFO line period |
+| `STATUS_LED` | `2` | On-board LED; blinks once per second while transmitting |
+
+### Using it
+
+1. Flash `beacon/beacon.ino` like any other board (ESP32 Dev Module).
+2. Open the Serial Monitor at 115200 and press **EN**. About every 5 s it
+   prints:
+
+   ```
+   INFO,beacon,mac=68:FE:71:FA:DF:FC,channel=11,rate_hz=20,sent=100,fail=0
+   ```
+
+   - `mac` is the Beacon's identity in every Record. Add it to the
+     authorized-device list (`gateway --devices` / `--mac`), and never to
+     an Anchor's `ignore_macs`. It is the board's STA MAC, so each Beacon
+     board has its own.
+   - `sent` should climb by `RATE_HZ × 5` per line, and `fail` should stay
+     at 0. Any `ERROR,beacon,…` line means setup failed.
+3. Confirm the Anchors hear it. With the Beacon on, each Anchor's `STATUS`
+   line shows `csi` climbing by about `RATE_HZ × 5` every 5 s. If the Beacon
+   shows `sent` climbing but `csi` stays flat, check that both use the same
+   channel. `make dashboard ANCHOR=A1` should then show the Beacon's MAC at
+   about `RATE_HZ` frames/s.
+4. Unplug it from the laptop and run it from a USB power bank. The blinking
+   LED is the alive check. If the LED stops, the power bank may have
+   switched off at low current draw; use one with an always-on mode.
+
+The Beacon side can only prove that it is **sending**. Broadcast frames get
+no reply, so step 3 is the only check that the Anchors receive them with CSI.
+
+For Calibration sessions, keep the Beacon's height, antenna orientation and
+power-bank position the same at every Reference point, since the Radio map
+is only valid if the transmitter itself doesn't change.
 
 ## Anchor firmware — passive RSSI + CSI sniffer
 
@@ -260,6 +323,6 @@ The thesis target is non-cooperative, but controlled trials need packets:
 - **Simplest:** a phone on a hotspot pinned to the sniff channel, with the
   laptop running `ping -i 0.05 <phone-ip>` (or the phone streaming media)
   ⇒ steady, repeatable frames from a known MAC.
-- **Optional:** a 5th ESP32 sending a small UDP datagram every 50 ms gives a
-  fully controllable packet rate for fingerprint/radio-map collection (not
-  included yet; easy follow-up).
+- **Beacon:** an ESP32 running `beacon/beacon.ino` gives a fully
+  controllable packet rate from a fixed MAC for Radio map collection; see
+  "Beacon firmware" above.

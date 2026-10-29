@@ -7,6 +7,11 @@ Two Capture formats are read, detected from the header row:
   (``scripts/uart_listener_2.py``, as run on the Pi-era Gateway). It has no
   sig_mode or timestamp_us, so both read as 0, and MACs are uppercase.
 
+Logger-format CSI lines come in two layouts, told apart by
+``_csi_header_length``: the 9-field wired line (ESP-IDF/Arduino Anchors,
+simulator) and the 15-field wireless Relay line, whose extra 802.11 fields
+are None on 9-field Records.
+
 ``parse_firmware_line`` is a pure function on a single line so the same
 code path serves logged files today and a live serial/UDP reader later
 (the live reader would stamp ``t_host = time.time()`` itself).
@@ -31,6 +36,10 @@ from gateway.records import CsiRecord, ParseStats, StatRecord
 MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
 
 CSI_HEADER_FIELDS = 9   # CSI,anchor,seq,mac,rssi,sig_mode,channel,timestamp_us,n_sub
+# Wireless Relay line (firmware/relay/relay.ino): CSI,anchor,seq,mac,rssi,
+# noise_floor,sig_mode,channel,bandwidth,frame_control,frame_seq,retry,
+# first_word_invalid,timestamp_us,n_sub
+WIRELESS_CSI_HEADER_FIELDS = 15
 STAT_FIELDS = 8         # STAT,anchor,uptime_ms,pkts_seen,csi_cb_count,queued,dropped,free_heap
 LEGACY_HEADER = ["host_iso", "host_ns", "type", "anchor_id", "seq", "mac",
                  "rssi", "channel", "len", "csi_payload"]
@@ -48,6 +57,13 @@ class CsiPayload:
     channel: int
     timestamp_us: int
     amps_hw: np.ndarray
+    # Wireless Relay line only; None on 9-field lines.
+    noise_floor: Optional[int] = None
+    bandwidth: Optional[int] = None
+    frame_control: Optional[int] = None  # 0xff = header not captured
+    frame_seq: Optional[int] = None    # -1 = header not captured
+    retry: Optional[int] = None
+    first_word_invalid: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +83,22 @@ def amplitudes_from_raw_iq(vals: Sequence[int]) -> np.ndarray:
     return np.hypot(iq[:, 0], iq[:, 1]).astype(np.float32)
 
 
+def _csi_header_length(fields: Sequence[str]) -> Optional[int]:
+    """9 or 15: the header length whose n_sub field is 64 or 128 and matches
+    the value count. The two layouts can't both match one line, because
+    their value counts differ by 6. None if neither fits."""
+    for h in (CSI_HEADER_FIELDS, WIRELESS_CSI_HEADER_FIELDS):
+        if len(fields) < h:
+            continue
+        try:
+            n_sub = int(fields[h - 1])
+        except ValueError:
+            continue
+        if n_sub in (64, 128) and len(fields) - h == n_sub:
+            return h
+    return None
+
+
 def parse_firmware_line(line: str) -> Optional[Union[CsiPayload, StatPayload]]:
     """Parse one raw firmware line. Returns None if it is not a well-formed
     CSI or STAT line (unknown prefixes are also None; the caller decides
@@ -75,27 +107,44 @@ def parse_firmware_line(line: str) -> Optional[Union[CsiPayload, StatPayload]]:
 
     try:
         if fields[0] == "CSI":
-            if len(fields) < CSI_HEADER_FIELDS:
+            header_len = _csi_header_length(fields)
+            if header_len is None:
                 return None
-            n_sub = int(fields[8])
-            values = fields[CSI_HEADER_FIELDS:]
-            if n_sub not in (64, 128) or len(values) != n_sub:
-                return None
+            values = fields[header_len:]
             mac = fields[3].lower()
             if not MAC_RE.match(mac):
                 return None
-            if n_sub == 128:
+            # 128 values are raw I/Q only on the wired line; the Relay always
+            # prints amplitudes.
+            if header_len == CSI_HEADER_FIELDS and len(values) == 128:
                 amps = amplitudes_from_raw_iq([int(v) for v in values])
             else:
                 amps = np.asarray([float(v) for v in values], dtype=np.float32)
+            if header_len == CSI_HEADER_FIELDS:
+                return CsiPayload(
+                    anchor=fields[1],
+                    seq=int(fields[2]),
+                    mac=mac,
+                    rssi=int(fields[4]),
+                    sig_mode=int(fields[5]),
+                    channel=int(fields[6]),
+                    timestamp_us=int(fields[7]),
+                    amps_hw=amps,
+                )
             return CsiPayload(
                 anchor=fields[1],
                 seq=int(fields[2]),
                 mac=mac,
                 rssi=int(fields[4]),
-                sig_mode=int(fields[5]),
-                channel=int(fields[6]),
-                timestamp_us=int(fields[7]),
+                noise_floor=int(fields[5]),
+                sig_mode=int(fields[6]),
+                channel=int(fields[7]),
+                bandwidth=int(fields[8]),
+                frame_control=int(fields[9], 16),
+                frame_seq=int(fields[10]),
+                retry=int(fields[11]),
+                first_word_invalid=int(fields[12]),
+                timestamp_us=int(fields[13]),
                 amps_hw=amps,
             )
 
@@ -194,6 +243,12 @@ def iter_logged_records(
                     t_host=t_host,
                     host_ns=host_ns,
                     amps_hw=payload.amps_hw,
+                    noise_floor=payload.noise_floor,
+                    bandwidth=payload.bandwidth,
+                    frame_control=payload.frame_control,
+                    frame_seq=payload.frame_seq,
+                    retry=payload.retry,
+                    first_word_invalid=payload.first_word_invalid,
                 )
             else:
                 stats.stat += 1

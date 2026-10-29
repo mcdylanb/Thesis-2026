@@ -28,6 +28,13 @@ class CsiRecord:
     t_host: float
     host_ns: int
     amps_hw: np.ndarray  # shape (64,) float32, hardware buffer order
+    # Wireless Relay line only (see gateway.parser); None otherwise.
+    noise_floor: Optional[int] = None
+    bandwidth: Optional[int] = None
+    frame_control: Optional[int] = None  # 0xff = header not captured
+    frame_seq: Optional[int] = None    # -1 = header not captured
+    retry: Optional[int] = None
+    first_word_invalid: Optional[int] = None
 
 
 @dataclass(frozen=True)

@@ -4,12 +4,13 @@
 #include <esp_timer.h>
 
 // ==================== CONFIG (edit per Anchor) ====================
-#define ANCHOR_ID        "A1"   // replace with this Anchor's id (A1..A4)
+#define ANCHOR_ID        "A4"   // replace with this Anchor's id (A1..A4)
 #define WIFI_CHANNEL     11     // sniff channel
 #define SERIAL_BAUD      115200 // CH340 clones garble 921600
 
 // Relay = 20:e7:c8:ad:96:68 (from its upload log, "MAC: ...")
-uint8_t relay_mac[] = {0x20, 0xe7, 0xc8, 0xad, 0x96, 0x68}; // replace with the Relay's ESP-NOW MAC address
+// 3c:8a:1f:9a:66:c8
+uint8_t relay_mac[] = {0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0xc8}; // replace with the Relay's ESP-NOW MAC address
 
 // Source MACs dropped in csi_rx_cb before they reach ESP-NOW (see
 // firmware/README.md "Anchor CONFIG block"). relay_mac is always dropped;
@@ -27,12 +28,18 @@ const uint8_t ignore_macs[][6] = {
 
 // The lightweight binary struct sent over to ESP-NOW (250 byte limit)
 typedef struct __attribute__((packed)) {
-  char     anchor_id[3]; 
+  char     anchor_id[3];
   uint32_t seq;
   uint8_t  mac[6];
   int8_t   rssi;
+  int8_t   noise_floor;        // NEW
   uint8_t  channel;
   uint8_t  sig_mode;
+  uint8_t  bandwidth;          // NEW (rx_ctrl.cwb)
+  uint8_t  frame_control;      // NEW (header byte 0)
+  uint16_t frame_seq;          // NEW (0-4095, 0xFFFF = unknown)
+  uint8_t  retry;              // NEW
+  uint8_t  first_word_invalid; // NEW
   uint8_t  len;
   uint32_t timestamp_us;
   int8_t   buf[CSI_BUF_MAX];
@@ -56,9 +63,37 @@ static inline bool is_ignored_mac(const uint8_t *mac) {
   return false;
 }
 
+typedef struct {
+  uint32_t ts;
+  uint8_t  addr2[6];
+  uint8_t  fc;
+  uint8_t  flags;
+  uint16_t seq;
+  bool     valid;
+} hdr_info_t;
+
+static hdr_info_t s_hdr = {};
+static portMUX_TYPE s_hdr_mux = portMUX_INITIALIZER_UNLOCKED;
+static volatile uint32_t s_hdr_miss = 0; // CSI records with no matching header
+
 // ---------------- Callbacks ----------------
 static void promisc_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
-  // keeping promiscuous active to satisfy radio requirements
+  if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA) return;
+  const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
+  if (pkt->rx_ctrl.sig_len < 24) return;
+  const uint8_t *h = pkt->payload;
+
+  hdr_info_t t;
+  t.ts    = pkt->rx_ctrl.timestamp;
+  memcpy(t.addr2, h + 10, 6);                 // transmitter address
+  t.fc    = h[0];                             // frame type/subtype byte
+  t.flags = h[1];                             // bit 3 = retry
+  t.seq   = (uint16_t)((h[22] | (h[23] << 8)) >> 4); // drop 4 fragment bits
+  t.valid = true;
+
+  portENTER_CRITICAL(&s_hdr_mux);
+  s_hdr = t;
+  portEXIT_CRITICAL(&s_hdr_mux);
 }
 
 static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
@@ -68,15 +103,36 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
   s_csi_count++;
 
   esp_now_csi_t rec;
+  memset(&rec, 0, sizeof(rec));
   strcpy(rec.anchor_id, ANCHOR_ID);
-  rec.seq          = s_csi_count;
+  rec.seq                = s_csi_count;
   memcpy(rec.mac, info->mac, 6);
-  rec.rssi         = info->rx_ctrl.rssi;
-  rec.channel      = info->rx_ctrl.channel;
-  rec.sig_mode     = info->rx_ctrl.sig_mode;
-  rec.timestamp_us = info->rx_ctrl.timestamp;
-  rec.len          = (info->len > CSI_BUF_MAX) ? CSI_BUF_MAX : info->len;
+  rec.rssi               = info->rx_ctrl.rssi;
+  rec.noise_floor        = info->rx_ctrl.noise_floor;
+  rec.channel            = info->rx_ctrl.channel;
+  rec.sig_mode           = info->rx_ctrl.sig_mode;
+  rec.bandwidth          = info->rx_ctrl.cwb;
+  rec.first_word_invalid = info->first_word_invalid ? 1 : 0;
+  rec.timestamp_us       = info->rx_ctrl.timestamp;
+  rec.len                = (info->len > CSI_BUF_MAX) ? CSI_BUF_MAX : info->len;
   memcpy(rec.buf, info->buf, rec.len);
+
+  hdr_info_t h;
+  portENTER_CRITICAL(&s_hdr_mux);
+  h = s_hdr;
+  portEXIT_CRITICAL(&s_hdr_mux);
+
+  if (h.valid && h.ts == info->rx_ctrl.timestamp &&
+      memcmp(h.addr2, info->mac, 6) == 0) {
+    rec.frame_control = h.fc;
+    rec.frame_seq     = h.seq;
+    rec.retry         = (h.flags >> 3) & 1;
+  } else {
+    rec.frame_control = 0xFF;   // unknown
+    rec.frame_seq     = 0xFFFF; // unknown
+    rec.retry         = 0;
+    s_hdr_miss++;
+  }
 
   if (xQueueSendFromISR(s_queue, &rec, NULL) != pdTRUE) s_queue_drops++;
 }
@@ -175,8 +231,8 @@ void loop() {
   uint8_t ch = 0;
   wifi_second_chan_t second;
   esp_wifi_get_channel(&ch, &second);
-  Serial.printf("STATUS,%s,csi=%lu,sent_ok=%lu,sent_fail=%lu,dropped=%lu,ch=%u\n",
+  Serial.printf("STATUS,%s,csi=%lu,sent_ok=%lu,sent_fail=%lu,dropped=%lu,hdr_miss=%lu,ch=%u\n",
                 ANCHOR_ID, (unsigned long)s_csi_count, (unsigned long)s_send_ok,
-                (unsigned long)s_send_fail, (unsigned long)s_queue_drops, (unsigned)ch);
+                (unsigned long)s_send_fail, (unsigned long)s_queue_drops, (unsigned long)s_hdr_miss, (unsigned)ch);
 }
 

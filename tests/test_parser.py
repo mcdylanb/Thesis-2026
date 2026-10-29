@@ -13,7 +13,9 @@ from gateway.parser import (
     parse_firmware_line,
 )
 from gateway.records import CsiRecord, ParseStats, StatRecord
-from tests.conftest import LEGACY_DIR, make_csi_line, make_logged_row, make_stat_line
+from tests.conftest import (
+    LEGACY_DIR, make_csi_line, make_logged_row, make_stat_line, make_wireless_csi_line,
+)
 
 
 def test_valid_csi_line_fields():
@@ -28,6 +30,48 @@ def test_valid_csi_line_fields():
     assert p.timestamp_us == 123456789
     assert p.amps_hw.shape == (64,)
     assert p.amps_hw.dtype == np.float32
+
+
+def test_wireless_csi_line_fields():
+    p = parse_firmware_line(make_wireless_csi_line(anchor="A3", seq=7, rssi=-70))
+    assert isinstance(p, CsiPayload)
+    assert (p.anchor, p.seq, p.mac, p.rssi) == ("A3", 7, "a4:cf:12:3b:9e:01", -70)
+    assert (p.sig_mode, p.channel, p.timestamp_us) == (1, 6, 123456789)
+    assert p.noise_floor == -92
+    assert p.bandwidth == 0
+    assert p.frame_control == 0x08
+    assert p.frame_seq == 1234
+    assert p.retry == 0
+    assert p.first_word_invalid == 0
+    assert p.amps_hw.shape == (64,)
+
+
+def test_wireless_header_miss_sentinels_parse():
+    # The Relay prints frame_control 0xff and frame_seq -1 when the 802.11
+    # header wasn't captured; those lines still carry usable CSI.
+    p = parse_firmware_line(make_wireless_csi_line(frame_control="0xff", frame_seq=-1))
+    assert isinstance(p, CsiPayload)
+    assert p.frame_control == 255
+    assert p.frame_seq == -1
+    assert p.retry == 0
+
+
+def test_wireless_line_with_wrong_value_count_rejected():
+    line = make_wireless_csi_line()
+    assert parse_firmware_line(",".join(line.split(",")[:-1])) is None
+
+
+def test_nine_field_line_has_no_wireless_fields():
+    p = parse_firmware_line(make_csi_line())
+    assert isinstance(p, CsiPayload)
+    assert p.noise_floor is None and p.frame_seq is None and p.frame_control is None
+
+
+def test_wireless_128_values_are_amplitudes_not_raw_iq():
+    p = parse_firmware_line(make_wireless_csi_line(values=[5] * 128))
+    assert isinstance(p, CsiPayload)
+    assert p.amps_hw.shape == (128,)
+    assert np.allclose(p.amps_hw, 5.0)
 
 
 def test_valid_stat_line():
@@ -92,6 +136,22 @@ def test_iter_logged_records(tmp_path):
     assert stats.ignored_prefix == 1
     assert stats.malformed == 2  # broken CSI line + bad row shape
     assert records[0].t_host == 1000.0
+
+
+def test_wireless_and_wired_lines_in_one_capture(tmp_path):
+    f = tmp_path / "A1_test.csv"
+    f.write_text("\n".join([
+        "host_iso,host_ns,line",
+        make_logged_row(1000.0, make_wireless_csi_line(frame_seq=77, retry=1)),
+        make_logged_row(1000.1, make_csi_line(seq=2)),
+    ]) + "\n")
+
+    stats = ParseStats()
+    wireless, wired = list(iter_logged_records(f, stats))
+
+    assert stats.csi == 2 and stats.malformed == 0
+    assert (wireless.frame_seq, wireless.retry, wireless.noise_floor) == (77, 1, -92)
+    assert wired.frame_seq is None and wired.seq == 2
 
 
 def test_truncated_last_line_skipped(tmp_path):

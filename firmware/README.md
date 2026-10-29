@@ -29,10 +29,15 @@ Diagnostics on this path:
   Every 2 s it sends `HEARTBEAT,<ms>,rx=<espnow_records>,ch=<n>,wifi=<0|1>`
   to serial **and** over UDP. The listener counts heartbeats and never writes
   them to a Capture.
-- **Anchor:** prints `STATUS,<id>,csi=…,sent_ok=…,sent_fail=…,dropped=…,ch=…`
+- **Anchor:** prints `STATUS,<id>,csi=…,sent_ok=…,sent_fail=…,dropped=…,hdr_miss=…,ch=…`
   every 5 s, on USB serial only. It is never sent to the Relay. The prefix is
   `STATUS`, not `STAT`, on purpose, so it can't be mistaken for a `STAT,`
-  Record.
+  Record. `hdr_miss` counts CSI Records sent without 802.11 header fields
+  (see "Wireless CSI line" below).
+- **Record size:** the Anchor and the Relay each define the packed struct
+  `esp_now_csi_t` (156 bytes), and the Relay silently drops any ESP-NOW
+  record of a different size. After a change to the struct, reflash the Relay
+  and **every** Anchor from the same commit.
 
 ### Anchor CONFIG block (wireless sketch)
 
@@ -41,7 +46,7 @@ Diagnostics on this path:
 | `ANCHOR_ID` | `"A1"` | Emitted in every Record; set per board (`A1`..`A4`) |
 | `WIFI_CHANNEL` | `11` | Fixed sniff channel; must equal the trial network's channel |
 | `SERIAL_BAUD` | `115200` | USB serial rate (CH340 clones garble 921600) |
-| `relay_mac` | MP700-era Relay | The Relay's ESP-NOW MAC; always dropped from sniffed frames |
+| `relay_mac` | `3c:8a:1f:9a:66:c8` | The Relay's ESP-NOW MAC; always dropped from sniffed frames |
 | `ignore_macs` | MP700 AP `8c:90:2d:19:40:f1` | Extra source MACs dropped in the CSI callback before ESP-NOW |
 
 The Relay's UDP forwarding is 802.11 traffic on the sniff channel, so a
@@ -217,6 +222,45 @@ Example:
 CSI,A2,10482,a4:cf:12:3b:9e:01,-58,1,6,1849302811,64,0,0,0,0,12,14,15,15,17, ... ,0
 ```
 
+### Wireless CSI line (Relay)
+
+The wireless path (`anchor_arduino_wireless.ino` → `relay.ino`) emits a
+longer CSI line, with six extra fields. `STAT` lines are unchanged.
+
+```
+CSI,<anchor_id>,<seq>,<mac>,<rssi>,<noise_floor>,<sig_mode>,<channel>,<bandwidth>,<frame_control>,<frame_seq>,<retry>,<first_word_invalid>,<timestamp_us>,<n_sub>,<v1>,...,<vN>
+```
+
+The fields shared with the wired line mean the same thing. The extra fields:
+
+- `noise_floor` — signed dBm, `rx_ctrl.noise_floor`
+- `bandwidth` — `rx_ctrl.cwb`: 0 = 20 MHz, 1 = 40 MHz
+- `frame_control` — 802.11 header byte 0 (type/subtype), as hex (`0x08`).
+  `0xff` = unknown
+- `frame_seq` — 802.11 sequence number, 0–4095. `-1` = unknown
+- `retry` — 802.11 retry flag, 0/1. Reads 0 when the header is unknown, so
+  check `frame_control` before trusting it
+- `first_word_invalid` — 0/1, from `wifi_csi_info_t` (see "Subcarrier
+  mapping" below)
+
+The CSI callback gets no 802.11 header. The Anchor takes `frame_control`,
+`frame_seq` and `retry` from the last header seen by the promiscuous
+callback, but only when its timestamp and transmitter MAC match the CSI
+Record. Otherwise they are written as unknown and `hdr_miss` in `STATUS`
+goes up. A `hdr_miss` close to `csi` means the match isn't working on that
+board.
+
+Example:
+
+```
+CSI,A2,10482,a4:cf:12:3b:9e:01,-58,-95,1,11,0,0x08,1532,0,1,1849302811,64,0,0,0,0,12,14,15,15,17, ... ,0
+```
+
+`gateway/parser.py` reads both layouts. It tells them apart by which
+header length (9 or 15) has an `n_sub` of 64 or 128 that matches the
+number of values. The extra fields are `None` on Records from wired lines.
+The values are always amplitudes, even at 128.
+
 ### Subcarrier mapping (gateway-side)
 
 The 64 values are in LLTF hardware buffer order: entries 0–31 map to
@@ -240,7 +284,8 @@ usable subcarriers → 50 D-CFR differentials** (`gateway/csi.py`,
 
 ## Serial bandwidth
 
-An amplitude line is ~320 bytes ⇒ ~3200 bits on the wire:
+An amplitude line is ~320 bytes ⇒ ~3200 bits on the wire (the wireless
+line is ~20 bytes longer, so its rates are ~6% lower):
 
 | Baud | Max CSI lines/s |
 |---|---|

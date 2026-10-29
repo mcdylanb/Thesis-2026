@@ -91,7 +91,7 @@ Write down the MP700's 2.4 GHz MAC. It belongs in the Anchors' `ignore_macs`
 3. Open Serial Monitor at **115200** and press **EN/RST**. Expected:
 
    ```
-   INFO,relay_mac=20:E7:C8:AD:96:68
+   INFO,relay_mac=3C:8A:1F:9A:66:C8
    INFO,wifi_connecting,ssid=TP-Link_40F1,status=…     (a few, once a second)
    INFO,wifi_connected,ip=192.168.0.x,channel=11,gateway=192.168.0.197:5555
    HEARTBEAT,2000,rx=0,ch=11,wifi=1                     (every 2 s)
@@ -133,14 +133,14 @@ Leave `make listen` running from here on.
    - `ANCHOR_ID`: `"A1"`..`"A4"`, a different value per board.
    - `WIFI_CHANNEL`: `11`, the same as the Relay's `channel=` in step 4.
    - `relay_mac`: the Relay MAC from step 4, as hex bytes. For
-     `20:e7:c8:ad:96:68`, write
-     `{0x20, 0xe7, 0xc8, 0xad, 0x96, 0x68}`.
+     `3c:8a:1f:9a:66:c8`, write
+     `{0x3c, 0x8a, 0x1f, 0x9a, 0x66, 0xc8}`.
    - `ignore_macs`: the MP700's MAC from step 2.
 2. Upload, then Serial Monitor at 115200 and press **EN/RST**. Expected:
 
    ```
-   INFO,A1,channel=11,esp_now_mode=ready,anchor_mac=…,relay_mac=20:e7:c8:ad:96:68
-   STATUS,A1,csi=0,sent_ok=0,sent_fail=0,dropped=0,ch=11      (every 5 s)
+   INFO,A1,channel=11,esp_now_mode=ready,anchor_mac=…,relay_mac=3c:8a:1f:9a:66:c8
+   STATUS,A1,csi=0,sent_ok=0,sent_fail=0,dropped=0,hdr_miss=0,ch=11      (every 5 s)
    ```
 
    Any `ERROR,…` line means setup failed. Read it before going on.
@@ -242,8 +242,9 @@ The Relay → laptop link works. The problem is upstream:
 |---|---|---|
 | `csi=0` | Nothing transmitting on ch 11 that isn't on the ignore list | Start a target (step 7). Check the target is on the MP700, which is on ch 11 |
 | `csi` climbs, `sent_fail` climbs, `sent_ok=0` | The Relay isn't acking | `relay_mac` ≠ the Relay's MAC, or the Relay's `channel` ≠ `WIFI_CHANNEL`. Compare the banner with step 4 |
-| `csi` and `sent_ok` climb, but the Relay's `rx` stays 0 | Frames are acked by some other device with that MAC, or the Relay rebooted | Re-read `relay_mac` from the Relay's boot banner. Power-cycle the Relay |
-| Relay `rx` climbs, `lines` stays 0 | Records arrive, but their size doesn't match | Relay and Anchor were built from different `esp_now_csi_t` versions. Reflash both from the same commit |
+| `csi` and `sent_ok` climb, but the Relay's `rx` stays 0 | The Relay drops every record because its `esp_now_csi_t` size differs from the Anchor's (ESP-NOW still acks them, and `rx` only counts records of the right size). Or frames are acked by some other device with that MAC, or the Relay rebooted | Reflash the Relay and every Anchor from the same commit. Re-read `relay_mac` from the Relay's boot banner. Power-cycle the Relay |
+| Relay `rx` climbs, `lines` stays 0 | Records reach the Relay, but the listener doesn't keep their lines. (A size mismatch can't cause this: it keeps `rx` at 0, see the row above) | Check that the Relay's serial monitor prints `CSI,…` lines. If `skipped` climbs in the listener output, the lines arrive without a `CSI,` prefix or an anchor id |
+| `hdr_miss` climbs at the same rate as `csi` | No CSI Record matched a sniffed 802.11 header, so `frame_control`/`frame_seq`/`retry` read unknown | Data is still usable; only those three fields are missing. See "Wireless CSI line" in `firmware/README.md` |
 | `dropped` climbs | Anchor queue full: more traffic than ESP-NOW can carry | Expected on a very busy channel. Reduce traffic or filter to the target |
 | No `STATUS` line at all | Old Anchor firmware, or the board crashed | Reflash. Watch for a reboot loop on the Serial Monitor |
 

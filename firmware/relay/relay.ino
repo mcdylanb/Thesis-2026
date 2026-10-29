@@ -32,12 +32,18 @@ static IPAddress s_gateway_ip;
 static volatile uint32_t s_rx_count = 0; // ESP-NOW records received since boot
 
 typedef struct __attribute__((packed)) {
-  char     anchor_id[3]; 
+  char     anchor_id[3];
   uint32_t seq;
   uint8_t  mac[6];
   int8_t   rssi;
+  int8_t   noise_floor;        // NEW
   uint8_t  channel;
   uint8_t  sig_mode;
+  uint8_t  bandwidth;          // NEW (rx_ctrl.cwb)
+  uint8_t  frame_control;      // NEW (header byte 0)
+  uint16_t frame_seq;          // NEW (0-4095, 0xFFFF = unknown)
+  uint8_t  retry;              // NEW
+  uint8_t  first_word_invalid; // NEW
   uint8_t  len;
   uint32_t timestamp_us;
   int8_t   buf[CSI_BUF_MAX];
@@ -46,13 +52,19 @@ typedef struct __attribute__((packed)) {
 void format_and_print(const esp_now_csi_t *rec) {
   char line[LINE_MAX];
 
+  int fseq = (rec->frame_seq == 0xFFFF) ? -1 : (int)rec->frame_seq;
+
   int n = snprintf(line, sizeof(line),
-                   "CSI,%s,%u,%02x:%02x:%02x:%02x:%02x:%02x,%d,%u,%u,%u,",
+                   "CSI,%s,%u,%02x:%02x:%02x:%02x:%02x:%02x,%d,%d,%u,%u,%u,0x%02x,%d,%u,%u,%u,",
                    rec->anchor_id, (unsigned)rec->seq,
                    rec->mac[0], rec->mac[1], rec->mac[2],
                    rec->mac[3], rec->mac[4], rec->mac[5],
-                   (int)rec->rssi, (unsigned)rec->sig_mode,
-                   (unsigned)rec->channel, (unsigned)rec->timestamp_us);
+                   (int)rec->rssi, (int)rec->noise_floor,
+                   (unsigned)rec->sig_mode, (unsigned)rec->channel,
+                   (unsigned)rec->bandwidth, (unsigned)rec->frame_control,
+                   fseq, (unsigned)rec->retry,
+                   (unsigned)rec->first_word_invalid,
+                   (unsigned)rec->timestamp_us);
 
   int pairs = rec->len / 2;
   n += snprintf(line + n, sizeof(line) - n, "%u", (unsigned)pairs);

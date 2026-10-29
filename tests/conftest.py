@@ -39,6 +39,31 @@ def make_csi_line(
     )
 
 
+def make_wireless_csi_line(
+    anchor="A1",
+    seq=1,
+    mac="a4:cf:12:3b:9e:01",
+    rssi=-58,
+    noise_floor=-92,
+    sig_mode=1,
+    channel=6,
+    bandwidth=0,
+    frame_control="0x08",
+    frame_seq=1234,
+    retry=0,
+    first_word_invalid=0,
+    timestamp_us=123456789,
+    values=None,
+):
+    """The 15-field line the Relay prints (firmware/relay/relay.ino)."""
+    values = _default_amps() if values is None else values
+    return (
+        f"CSI,{anchor},{seq},{mac},{rssi},{noise_floor},{sig_mode},{channel},"
+        f"{bandwidth},{frame_control},{frame_seq},{retry},{first_word_invalid},"
+        f"{timestamp_us},{len(values)}," + ",".join(str(v) for v in values)
+    )
+
+
 def make_stat_line(anchor="A1", uptime_ms=5000, pkts_seen=100, csi_cb=80,
                    queued=80, dropped=0, free_heap=180000):
     return f"STAT,{anchor},{uptime_ms},{pkts_seen},{csi_cb},{queued},{dropped},{free_heap}"

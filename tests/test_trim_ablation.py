@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from gateway.radiomap import AnchorFingerprint, RadioMap, ReferencePoint
-from gateway.trim_ablation import compare_maps, leave_one_out
+from gateway.trim_ablation import compare_maps, leave_one_out, recordings, unmapped_points
 
 ANCHORS = ["A1", "A2", "A3", "A4"]
 
@@ -52,3 +52,30 @@ def test_compare_maps_reports_per_point_and_anchor_differences():
     # A point in only one map is listed, not dropped.
     (p2,) = [r for r in rows if r["point"] == "p2"]
     assert p2["anchor"] is None and p2["n_windows"] == (10, 0)
+
+
+def test_compare_maps_reports_the_amplitude_distance_too():
+    trimmed = _map(p1=_point(1.2, 6.0, NEAR_A1))
+    untrimmed = _map(p1=_point(1.2, 6.0, NEAR_A1))
+    untrimmed.points["p1"].anchors["A2"].amp = np.array([1.0, 1.0, 1.0, 3.0])
+    rows = {r["anchor"]: r for r in compare_maps(trimmed, untrimmed)}
+    assert rows["A1"]["amp_distance"] == pytest.approx(0.0)
+    assert rows["A2"]["amp_distance"] == pytest.approx(2.0)
+
+
+def test_unmapped_points_are_the_trials_with_no_sufficient_window():
+    rmap = _map(p1=_point(1.2, 6.0, NEAR_A1), p3=_point(3.6, 6.0, NEAR_A1))
+    truth = {"trials": [{"id": "p1"}, {"id": "p2"}, {"id": "p3"}, {"id": "p4"}]}
+    assert unmapped_points(rmap, truth) == ["p2", "p4"]
+
+
+def test_recordings_flag_long_and_short_beacon_spans():
+    def trial(tid, minutes, short=False):
+        return {"id": tid, "beacon_first": 0.0, "beacon_last": 60.0 * minutes,
+                "short": short}
+    truth = {"trials": [trial("p1", 6.0), trial("p2", 4.4, short=True),
+                        trial("p3", 7.0), trial("p4", 23.6)]}
+    rec = recordings(truth)
+    assert rec["median_min"] == pytest.approx(6.5)
+    assert rec["long"] == [("p4", pytest.approx(23.6))]
+    assert rec["short"] == [("p2", pytest.approx(4.4))]

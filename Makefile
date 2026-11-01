@@ -43,7 +43,8 @@ import-session: ## Real per-point zips in SESSION_SRC -> REAL | win: uv run pyth
 calibration-report: ## Radio map + quality report for REAL | win: uv run python -m gateway.calibration_report --session out/techhub/calibration --out out/techhub/report --fault A1:p28,p47,p53,p57,p61
 	$(RUN) python -m gateway.calibration_report --session $(REAL)/calibration --out $(REAL)/report $(FAULTS)
 
-trim-ablation: ## Trimmed vs untrimmed Radio map for REAL  | win: run the import-session line with --untrimmed --out out/techhub_untrimmed, then uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation
+trim-ablation: ## Trimmed vs untrimmed Radio map for REAL  | win: run the import-session line, then again with --untrimmed --out out/techhub_untrimmed, then uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation
+	$(RUN) python -m gateway.session_import --src $(SESSION_SRC) --out $(REAL) --layout $(LAYOUT)
 	$(RUN) python -m gateway.session_import --src $(SESSION_SRC) --out $(REAL)_untrimmed --layout $(LAYOUT) --untrimmed
 	$(RUN) python -m gateway.trim_ablation --trimmed $(REAL) --untrimmed $(REAL)_untrimmed --out $(REAL)/trim_ablation
 

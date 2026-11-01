@@ -103,6 +103,7 @@ make preprocess DATA=data OUT=out/windows.jsonl    # windows + features from Cap
 make synth                                          # synthetic Trial in synth_data/ when you have no hardware
 make preprocess DATA=synth_data OUT=out/synth.jsonl
 make import-session                                 # real Calibration session (one zip per Reference point) -> out/techhub/calibration/, trimmed 30 s + 4 min; add --untrimmed via the module
+make calibration-report                             # its Radio map + holes / Anchor coverage / above-floor / day-drift report (out/techhub/report/report.md)
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
 make preprocess DATA=sim_data/calibration/p1 OUT=out/p1.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
@@ -127,6 +128,7 @@ copy `gateway/devices.example.yaml`.
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
 | `make import-session` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub` |
+| `make calibration-report` | `uv run python -m gateway.calibration_report --session out/techhub/calibration --out out/techhub/report --fault A1:p28,p47,p53,p57,p61` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
 | `make eval` | run the `make sim` line, then `uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0` |
 | `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |

@@ -175,7 +175,9 @@ def calibration_report(
 
 
 def _pct(v: Optional[float]) -> str:
-    return "-" if v is None else f"{100 * v:.0f}%"
+    if v is None:
+        return "-"
+    return f"{100 * v:.1f}%" if 0 < v < 0.01 else f"{100 * v:.0f}%"
 
 
 def format_markdown(report: dict, title: str) -> str:

@@ -89,7 +89,7 @@ def test_evaluate_scores_each_trial_against_ground_truth():
 
 def test_noiseless_baseline_median_error_below_grid_spacing(tmp_path):
     # Pipeline check on the 8 x 6 m placeholder geometry it was written for:
-    # in the 12 x 6 m Tech Hub layout even noiseless k-NN misses by ~1.6 m
+    # in the 12 x 6 m TechHub layout even noiseless k-NN misses by ~1.6 m
     # median (symmetric mid-room positions), a geometry finding (#44).
     layout = load_layout(PLACEHOLDER_LAYOUT)
     physics = load_physics(layout, LAYOUTS / "noiseless.json")

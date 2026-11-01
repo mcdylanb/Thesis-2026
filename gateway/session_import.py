@@ -1,4 +1,4 @@
-"""Import a real session recorded as one zip per position (#45).
+"""Import a real session recorded as one zip per Reference point (#45).
 
     python -m gateway.session_import --src data/<capture>/compiled_data \
         --out out/techhub [--layout layouts/techhub_default.yaml] [--untrimmed]
@@ -11,9 +11,9 @@ so preprocessing, the Radio map builder and the evaluation harness read a
 real session exactly like a simulated one.
 
 There is no hand-written schedule: a Trial's host-time span comes from the
-Beacon's own Records. Trimmed (the default) skips the first 30 s, when
-someone is still walking away from the placed Beacon, and keeps the next
-4 min, so every point carries equal weight. A point whose Beacon Records do
+Beacon's own Records. Trimmed (the default) skips the first DEFAULT_TRIM
+skip_s (30 s), when someone is still walking away from the placed Beacon,
+and keeps the next keep_s (4 min), so every point carries equal weight. A point whose Beacon Records do
 not cover that is kept with its span cut at its last Record and listed under
 `short`. Untrimmed spans the Beacon's first to last Record.
 """
@@ -147,17 +147,18 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--layout", type=Path, default=Path("layouts/techhub_default.yaml"))
     ap.add_argument("--session", default="calibration")
+    skip_s, keep_s = DEFAULT_TRIM
     ap.add_argument("--untrimmed", action="store_true",
                     help="span the Beacon's first to last Record instead of "
-                         "skipping 30 s and keeping 4 min")
+                         f"skipping {skip_s:g} s and keeping {keep_s:g} s")
     args = ap.parse_args(argv)
 
     truth = import_session(args.src, load_layout(args.layout), args.out,
                            session=args.session,
                            trim=None if args.untrimmed else DEFAULT_TRIM)
     for point in truth["short"]:
-        print(f"warning: {point}'s Beacon Records end before its 4 min are "
-              "kept; span cut at the last Record", file=sys.stderr)
+        print(f"warning: {point}'s Beacon Records end before its {keep_s:g} s "
+              "are kept; span cut at the last Record", file=sys.stderr)
     print(f"{args.session}: {len(truth['trials'])} Trials -> {args.out / args.session}")
     return 0
 

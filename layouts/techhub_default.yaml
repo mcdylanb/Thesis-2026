@@ -1,4 +1,4 @@
-# Tech Hub Trial layout (surveyed 2026-10-29, #44), used by the spatial
+# TechHub Trial layout (surveyed 2026-10-29, #44), used by the spatial
 # simulator (gateway/sim.py, #25) and the evaluation harness.
 #
 # Room: the 1200 x 600 cm trial area, 60 cm floor tiles (20 x 10). The
@@ -20,7 +20,7 @@ anchors:
   A3: [12.0, 0.0]
   A4: [0.0, 0.0]
 
-# Reference points of the Tech Hub Calibration session (ADR-0003), listed
+# Reference points of the TechHub Calibration session (ADR-0003), listed
 # instead of generated because the session's grid and naming are fixed by
 # what was measured: a 1.2 m lattice (every second tile line), 11 x 6 = 66
 # corners less the four Anchor corners = 62 points. Names follow the walk
@@ -139,7 +139,7 @@ zones:
 devices:
   beacon:
     role: beacon
-    mac: "68:fe:71:fa:df:fc"   # the Tech Hub Beacon
+    mac: "68:fe:71:fa:df:fc"   # the TechHub Beacon
     mode: steady
     rate_hz: 20.0
     tx_offset_db: 0.0

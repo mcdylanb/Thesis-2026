@@ -1,6 +1,6 @@
 # FROZEN TEST FIXTURE: the pre-survey 8 x 6 m placeholder layout (before
 # #44). Kept so the noiseless pipeline test checks the pipeline on the
-# geometry it was written for; the Tech Hub layout is
+# geometry it was written for; the TechHub layout is
 # layouts/techhub_default.yaml.
 #
 # Coordinates are metres; origin (0, 0) is one room corner, x runs along the

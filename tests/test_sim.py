@@ -49,7 +49,7 @@ def test_default_layout_loads(layout):
 
 
 def test_default_layout_reference_points_follow_the_walk_order(layout):
-    # Tech Hub Calibration session: 1.2 m lattice, Anchor corners excluded,
+    # TechHub Calibration session: 1.2 m lattice, Anchor corners excluded,
     # p1 next to A1, rows run A1 -> A2, one row toward A4 at a time.
     grid = reference_grid(layout)
     assert [name for name, _, _ in grid] == [f"p{i}" for i in range(1, 63)]

@@ -114,3 +114,25 @@ def test_each_day_reports_how_often_each_anchor_heard_the_beacon(report):
 def test_markdown_says_faults_come_from_the_field_notes(report):
     md = format_markdown(report, "t")
     assert "from the field notes, not inferred from the data" in md
+
+
+def test_distance_fit_correlates_median_rssi_with_log_distance():
+    # RSSI exactly -40 - 20 log10(d) at every heard (point, Anchor): r = -1.
+    import math
+    anchors = {"A1": [0.0, 6.0], "A2": [12.0, 6.0], "A3": [12.0, 0.0], "A4": [0.0, 0.0]}
+    spots = {"p1": (1.2, 6.0), "p2": (6.0, 2.4), "p3": (10.8, 1.2)}
+    truth = {"anchors": anchors, "trials": []}
+    windows = []
+    for i, (pid, (x, y)) in enumerate(spots.items()):
+        trial = _trial(pid, 1_000.0 * i)
+        trial["devices"][0].update(x=x, y=y)
+        truth["trials"].append(trial)
+        rssi = {a: -40 - 20 * math.log10(math.hypot(x - ax, y - ay))
+                for a, (ax, ay) in anchors.items()}
+        windows += [_window(1_000.0 * i + j, {a: (r, r > -80) for a, r in rssi.items()})
+                    for j in range(3)]
+    traffic = {"records": {p: {a: 100 for a in anchors} for p in spots},
+               "ambient_rssi": {}}
+    fit = calibration_report(windows, truth, traffic)["distance_fit"]
+    assert fit["n_pairs"] == 12
+    assert fit["r"] == pytest.approx(-1.0)

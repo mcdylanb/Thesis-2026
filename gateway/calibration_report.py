@@ -20,6 +20,9 @@ and moving Anchors (ADR-0003); it changes no threshold itself.
 - Sniper eligibility: the above-floor rate over heard (window, Anchor)
   pairs, and the share of Beacon windows with >= min_anchors Anchors above
   the floor, which bounds how often the Sniper can run.
+- Distance fit: Pearson r between each heard (point, Anchor)'s median
+  Beacon RSSI and log10 of its surveyed distance. Strongly negative r says
+  the Reference point positions (the walk order) match the data.
 - Day boundary: the session is split into days at gaps > 6 h. Per day,
   its first and last Beacon Record and how often each Anchor heard the
   Beacon (share of the day's Beacon windows); and, for every
@@ -38,6 +41,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
+
+import numpy as np
 
 from gateway.evaluate import MIN_SUFFICIENT_WINDOWS, preprocess_session
 from gateway.parser import iter_logged_records
@@ -95,6 +100,22 @@ def _day_summary(points: List[str], truth: dict, by_trial: Dict[str, List[dict]]
         "hear_rate": {a: (sum(1 for w in ws if w["anchors"].get(a)) / len(ws)
                           if ws else None) for a in anchor_ids},
     }
+
+
+def _distance_fit(points: Dict[str, dict], anchor_xy: Optional[dict]) -> Optional[dict]:
+    if not anchor_xy:
+        return None
+    log_d, rssi = [], []
+    for p in points.values():
+        for a, cell in p["anchors"].items():
+            if cell["median_rssi"] is None or a not in anchor_xy:
+                continue
+            ax, ay = anchor_xy[a]
+            log_d.append(np.log10(max(np.hypot(p["x"] - ax, p["y"] - ay), 0.1)))
+            rssi.append(cell["median_rssi"])
+    if len(rssi) < 3:
+        return None
+    return {"r": float(np.corrcoef(log_d, rssi)[0, 1]), "n_pairs": len(rssi)}
 
 
 def _random_mac(mac: str) -> bool:
@@ -185,6 +206,7 @@ def calibration_report(
             "min_anchors": min_anchors,
         },
         "faults": {a: sorted(ps) for a, ps in faults.items()},
+        "distance_fit": _distance_fit(points, truth.get("anchors")),
         "drift": {"days": [_day_summary(d, truth, by_trial, anchor_ids) for d in days],
                   "rows": _drift(days, traffic["ambient_rssi"])},
     }
@@ -207,6 +229,10 @@ def format_markdown(report: dict, title: str) -> str:
         f"- Above-floor rate (heard window x Anchor pairs): {_pct(floor['rate'])}",
         f"- Beacon windows with >= {floor['min_anchors']} Anchors above the floor "
         f"(Sniper can run): {_pct(floor['sniper_eligible_rate'])}",
+        "- Median Beacon RSSI vs log10 distance to the Anchor: " + (
+            f"r = {report['distance_fit']['r']:.2f} over "
+            f"{report['distance_fit']['n_pairs']} heard (point, Anchor) pairs"
+            if report.get("distance_fit") else "no Anchor positions"),
         "- Field-noted faults (from the field notes, not inferred from the data): "
         + (", ".join(f"{a} at {', '.join(ps)}" for a, ps in report["faults"].items())
            or "none"),

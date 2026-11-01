@@ -103,7 +103,7 @@ make preprocess DATA=data OUT=out/windows.jsonl    # windows + features from Cap
 make synth                                          # synthetic Trial in synth_data/ when you have no hardware
 make preprocess DATA=synth_data OUT=out/synth.jsonl
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
-make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
+make preprocess DATA=sim_data/calibration/p1 OUT=out/p1.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
 make eval-scout                                     # same, plus the MDN Scout trained on that radio map (out/eval/scout.json, scout.pt)
 make eval                                           # k-NN, Scout and the proposed Scout -> fallback -> Sniper side by side, with fallback rate and latency (out/eval/proposed.json)

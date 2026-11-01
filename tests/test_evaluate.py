@@ -13,6 +13,7 @@ from gateway.sim import load_layout, load_physics, reference_grid, simulate_sess
 
 LAYOUTS = Path(__file__).resolve().parents[1] / "layouts"
 DEFAULT_LAYOUT = LAYOUTS / "techhub_default.yaml"
+PLACEHOLDER_LAYOUT = Path(__file__).resolve().parent / "fixtures" / "placeholder_8x6_layout.yaml"
 
 
 def test_metrics_match_hand_computed_values():
@@ -87,7 +88,10 @@ def test_evaluate_scores_each_trial_against_ground_truth():
 
 
 def test_noiseless_baseline_median_error_below_grid_spacing(tmp_path):
-    layout = load_layout(DEFAULT_LAYOUT)
+    # Pipeline check on the 8 x 6 m placeholder geometry it was written for:
+    # in the 12 x 6 m Tech Hub layout even noiseless k-NN misses by ~1.6 m
+    # median (symmetric mid-room positions), a geometry finding (#44).
+    layout = load_layout(PLACEHOLDER_LAYOUT)
     physics = load_physics(layout, LAYOUTS / "noiseless.json")
     sim = tmp_path / "sim"
     t = 1_000_000.0

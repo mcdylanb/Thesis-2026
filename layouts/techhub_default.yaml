@@ -1,62 +1,132 @@
-# Default Trial layout for the spatial simulator (gateway/sim.py, issue #25).
+# Tech Hub Trial layout (surveyed 2026-10-29, #44), used by the spatial
+# simulator (gateway/sim.py, #25) and the evaluation harness.
 #
-# PLACEHOLDER GEOMETRY: an 8 x 6 m rectangular room standing in for the
-# TechHub test area until it is surveyed. Replace room size, Anchor and Test
-# position coordinates with measured TechHub numbers (origin and axes as
-# fixed in the thesis appendix, task 1.3) before comparing simulated and real
-# Trials.
+# Room: the 1200 x 600 cm trial area, 60 cm floor tiles (20 x 10). The
+# Anchors and the Beacon all sit on 77 cm tables, so the geometry is 2-D.
 #
-# Coordinates are metres; origin (0, 0) is one room corner, x runs along the
-# width, y along the height. All positions must lie inside the room.
+# Coordinates are metres; origin (0, 0) is A4's corner, x runs along the
+# 1200 cm side, y along the 600 cm side. The team's whiteboard sketch uses
+# the other axis names: its X runs along the 600 cm side and its y along the
+# 1200 cm side, also from A4. So repo (x, y) = whiteboard (y, X).
 
 room:
-  width_m: 8.0
+  width_m: 12.0
   height_m: 6.0
 
-# Anchors A1..A4, one near each corner, inset 0.3 m from both walls
-# (ADR-0003: placed so every Test position stays above the -80 dBm floor at
-# >= min_anchors Anchors; `python -m gateway.sim` warns if it does not).
+# Anchors A1..A4 at the four room corners, clockwise from A1.
 anchors:
-  A1: [0.3, 0.3]
-  A2: [7.7, 0.3]
-  A3: [7.7, 5.7]
-  A4: [0.3, 5.7]
+  A1: [0.0, 6.0]
+  A2: [12.0, 6.0]
+  A3: [12.0, 0.0]
+  A4: [0.0, 0.0]
 
-# Reference grid for the Calibration session (ADR-0003: ~1 m spacing).
-# Points run from margin_m to (size - margin_m) in steps of spacing_m and
-# are named R01, R02, ... row by row (x fastest). Here: 8 x 6 = 48 points.
-grid:
-  spacing_m: 1.0
-  margin_m: 0.5
+# Reference points of the Tech Hub Calibration session (ADR-0003), listed
+# instead of generated because the session's grid and naming are fixed by
+# what was measured: a 1.2 m lattice (every second tile line), 11 x 6 = 66
+# corners less the four Anchor corners = 62 points. Names follow the walk
+# order: p1 next to A1, each row runs A1 -> A2, then one row toward A4.
+# The order was confirmed against RSSI vs distance (r = -0.78).
+#
+#   y\x 0.0  1.2  2.4  3.6  4.8  6.0  7.2  8.4  9.6 10.8 12.0
+#   6.0  A1   p1   p2   p3   p4   p5   p6   p7   p8   p9   A2
+#   4.8 p10  p11  p12  p13  p14  p15  p16  p17  p18  p19  p20
+#   3.6 p21  p22  p23  p24  p25  p26  p27  p28  p29  p30  p31
+#   2.4 p32  p33  p34  p35  p36  p37  p38  p39  p40  p41  p42
+#   1.2 p43  p44  p45  p46  p47  p48  p49  p50  p51  p52  p53
+#   0.0  A4  p54  p55  p56  p57  p58  p59  p60  p61  p62   A3
+reference_points:
+  p1: [1.2, 6.0]
+  p2: [2.4, 6.0]
+  p3: [3.6, 6.0]
+  p4: [4.8, 6.0]
+  p5: [6.0, 6.0]
+  p6: [7.2, 6.0]
+  p7: [8.4, 6.0]
+  p8: [9.6, 6.0]
+  p9: [10.8, 6.0]
+  p10: [0.0, 4.8]
+  p11: [1.2, 4.8]
+  p12: [2.4, 4.8]
+  p13: [3.6, 4.8]
+  p14: [4.8, 4.8]
+  p15: [6.0, 4.8]
+  p16: [7.2, 4.8]
+  p17: [8.4, 4.8]
+  p18: [9.6, 4.8]
+  p19: [10.8, 4.8]
+  p20: [12.0, 4.8]
+  p21: [0.0, 3.6]
+  p22: [1.2, 3.6]
+  p23: [2.4, 3.6]
+  p24: [3.6, 3.6]
+  p25: [4.8, 3.6]
+  p26: [6.0, 3.6]
+  p27: [7.2, 3.6]
+  p28: [8.4, 3.6]
+  p29: [9.6, 3.6]
+  p30: [10.8, 3.6]
+  p31: [12.0, 3.6]
+  p32: [0.0, 2.4]
+  p33: [1.2, 2.4]
+  p34: [2.4, 2.4]
+  p35: [3.6, 2.4]
+  p36: [4.8, 2.4]
+  p37: [6.0, 2.4]
+  p38: [7.2, 2.4]
+  p39: [8.4, 2.4]
+  p40: [9.6, 2.4]
+  p41: [10.8, 2.4]
+  p42: [12.0, 2.4]
+  p43: [0.0, 1.2]
+  p44: [1.2, 1.2]
+  p45: [2.4, 1.2]
+  p46: [3.6, 1.2]
+  p47: [4.8, 1.2]
+  p48: [6.0, 1.2]
+  p49: [7.2, 1.2]
+  p50: [8.4, 1.2]
+  p51: [9.6, 1.2]
+  p52: [10.8, 1.2]
+  p53: [12.0, 1.2]
+  p54: [1.2, 0.0]
+  p55: [2.4, 0.0]
+  p56: [3.6, 0.0]
+  p57: [4.8, 0.0]
+  p58: [6.0, 0.0]
+  p59: [7.2, 0.0]
+  p60: [8.4, 0.0]
+  p61: [9.6, 0.0]
+  p62: [10.8, 0.0]
 
-# Held-out Test positions P1..P10 (ADR-0003). They sit on whole-metre
-# coordinates so they are >= 0.7 m from every Reference point; the loader
-# rejects any Test position closer than 0.3 m to a Reference point.
+# Held-out Test positions P1..P10 (ADR-0003). PLACEHOLDERS until the
+# Test-position day is planned: they sit at 1.2 m cell centres, so each is
+# 0.85 m from every Reference point (the loader rejects < 0.3 m), and
+# >= 0.6 m from every internal zone edge.
 test_positions:
-  P1: [1.0, 1.0]
-  P2: [4.0, 1.0]
-  P3: [7.0, 1.0]
-  P4: [3.0, 2.0]
-  P5: [2.0, 3.0]
-  P6: [4.0, 3.0]
-  P7: [6.0, 3.0]
-  P8: [1.0, 5.0]
-  P9: [4.0, 5.0]
-  P10: [7.0, 5.0]
+  P1: [1.8, 0.6]
+  P2: [6.6, 0.6]
+  P3: [10.2, 0.6]
+  P4: [3.0, 1.8]
+  P5: [5.4, 1.8]
+  P6: [9.0, 1.8]
+  P7: [1.8, 4.2]
+  P8: [5.4, 4.2]
+  P9: [9.0, 4.2]
+  P10: [10.2, 5.4]
 
 # Coarse zones for the zone-accuracy metric (ADR-0003: >= ~90 % target).
 # Rectangles [x0, y0, x1, y1] that must tile the room exactly; a point on a
 # shared edge belongs to the zone with the larger coordinate. Every Test
 # position must be >= 0.3 m from an internal zone edge (else its zone hit
-# is a coin flip); the loader enforces it. Placeholder 3 x 2 split, split
-# at y = 3.5 because P5-P7 sit on y = 3 — redraw to match TechHub's areas.
+# is a coin flip); the loader enforces it. PLACEHOLDER 3 x 2 split of the
+# 12 x 6 m room; redraw to match TechHub's areas.
 zones:
-  Z1: [0.0, 0.0, 2.7, 3.5]
-  Z2: [2.7, 0.0, 5.3, 3.5]
-  Z3: [5.3, 0.0, 8.0, 3.5]
-  Z4: [0.0, 3.5, 2.7, 6.0]
-  Z5: [2.7, 3.5, 5.3, 6.0]
-  Z6: [5.3, 3.5, 8.0, 6.0]
+  Z1: [0.0, 0.0, 4.0, 3.0]
+  Z2: [4.0, 0.0, 8.0, 3.0]
+  Z3: [8.0, 0.0, 12.0, 3.0]
+  Z4: [0.0, 3.0, 4.0, 6.0]
+  Z5: [4.0, 3.0, 8.0, 6.0]
+  Z6: [8.0, 3.0, 12.0, 6.0]
 
 # Transmitters. mode: steady (fixed rate_hz, the Beacon) or sporadic
 # (ambient IoT: Poisson bursts averaging rate_hz packets/s overall,
@@ -69,7 +139,7 @@ zones:
 devices:
   beacon:
     role: beacon
-    mac: "24:0a:c4:00:be:01"
+    mac: "68:fe:71:fa:df:fc"   # the Tech Hub Beacon
     mode: steady
     rate_hz: 20.0
     tx_offset_db: 0.0
@@ -89,7 +159,7 @@ devices:
     mode: sporadic
     rate_hz: 0.1
     burst_mean: 3
-    position: [6.5, 4.5]
+    position: [9.75, 4.5]
     tx_offset_db: -2.0
     gain: 1.1
     tilt: -0.2
@@ -99,7 +169,7 @@ devices:
     mode: sporadic
     rate_hz: 0.1
     burst_mean: 3
-    position: [1.5, 4.0]
+    position: [2.25, 4.0]
     tx_offset_db: 2.0
     gain: 0.9
     tilt: 0.3

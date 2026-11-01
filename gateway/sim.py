@@ -110,10 +110,11 @@ class Layout:
     width_m: float
     height_m: float
     anchors: Dict[str, Point]
-    grid_spacing_m: float
-    grid_margin_m: float
+    grid_spacing_m: Optional[float]
+    grid_margin_m: Optional[float]
     test_positions: Dict[str, Point]
     devices: Dict[str, Device]
+    reference_points: Dict[str, Point] = field(default_factory=dict)
     physics: Dict[str, float] = field(default_factory=dict)
     zones: Dict[str, Tuple[float, float, float, float]] = field(default_factory=dict)
     path: Optional[Path] = None
@@ -133,14 +134,18 @@ def load_layout(path: Path) -> Layout:
         if "position" in d:
             d["position"] = _point(d["position"])
         devices[name] = Device(name=name, **d)
+    grid = raw.get("grid") or {}
     layout = Layout(
         width_m=float(raw["room"]["width_m"]),
         height_m=float(raw["room"]["height_m"]),
         anchors={a: _point(p) for a, p in raw["anchors"].items()},
-        grid_spacing_m=float(raw["grid"]["spacing_m"]),
-        grid_margin_m=float(raw["grid"]["margin_m"]),
+        grid_spacing_m=float(grid["spacing_m"]) if "spacing_m" in grid else None,
+        grid_margin_m=float(grid["margin_m"]) if "margin_m" in grid else None,
         test_positions={p: _point(v) for p, v in raw["test_positions"].items()},
         devices=devices,
+        reference_points={
+            p: _point(v) for p, v in (raw.get("reference_points") or {}).items()
+        },
         physics={**DEFAULT_PHYSICS, **raw.get("physics", {})},
         zones={z: tuple(float(v) for v in r) for z, r in raw.get("zones", {}).items()},
         path=path,
@@ -153,7 +158,9 @@ def _validate(layout: Layout) -> None:
     def inside(p: Point) -> bool:
         return 0 <= p[0] <= layout.width_m and 0 <= p[1] <= layout.height_m
 
-    named = {**layout.anchors, **layout.test_positions}
+    if not layout.reference_points and layout.grid_spacing_m is None:
+        raise ValueError("layout needs a grid or a reference_points list")
+    named = {**layout.anchors, **layout.test_positions, **layout.reference_points}
     named.update(
         {n: d.position for n, d in layout.devices.items() if d.position is not None}
     )
@@ -214,7 +221,11 @@ def zone_of(layout: Layout, x: float, y: float) -> Optional[str]:
 
 
 def reference_grid(layout: Layout) -> List[Tuple[str, float, float]]:
-    """Reference points R01, R02, ... row by row (x fastest)."""
+    """The layout's Reference points: its explicit `reference_points` list in
+    file order (a surveyed session's walk order), else a generated grid
+    R01, R02, ... row by row (x fastest)."""
+    if layout.reference_points:
+        return [(n, x, y) for n, (x, y) in layout.reference_points.items()]
     step, margin = layout.grid_spacing_m, layout.grid_margin_m
     xs = np.arange(margin, layout.width_m - margin + 1e-9, step)
     ys = np.arange(margin, layout.height_m - margin + 1e-9, step)

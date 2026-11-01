@@ -35,12 +35,12 @@ def calibration(tmp_path_factory):
 def test_build_gives_one_entry_per_reference_point(calibration):
     layout, truth, meta, windows = calibration
     rmap = build_radio_map(windows, meta, truth)
-    assert list(rmap.points) == ["R01", "R02", "R03"]
-    r01 = rmap.points["R01"]
-    assert (r01.x, r01.y) == (0.5, 0.5)
-    assert r01.n_windows >= 5
+    assert list(rmap.points) == ["p1", "p2", "p3"]
+    p1 = rmap.points["p1"]
+    assert (p1.x, p1.y) == (1.2, 6.0)
+    assert p1.n_windows >= 5
     for anchor in ("A1", "A2", "A3", "A4"):
-        fp = r01.anchors[anchor]
+        fp = p1.anchors[anchor]
         assert -95 < fp.rssi < -20
         assert fp.dcfr.shape == (meta["n_dcfr"],)
         assert fp.amp.shape == (meta["n_usable_subcarriers"],)
@@ -58,8 +58,8 @@ def test_build_ignores_other_devices(calibration):
 
 def test_closer_anchor_is_stronger_in_the_map(calibration):
     _, truth, meta, windows = calibration
-    r01 = build_radio_map(windows, meta, truth).points["R01"]  # next to A1
-    assert r01.anchors["A1"].rssi > r01.anchors["A3"].rssi
+    p1 = build_radio_map(windows, meta, truth).points["p1"]  # next to A1
+    assert p1.anchors["A1"].rssi > p1.anchors["A3"].rssi
 
 
 def test_radio_map_round_trips_through_disk(calibration, tmp_path):

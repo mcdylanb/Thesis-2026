@@ -26,6 +26,7 @@ from gateway.sim import (
 )
 
 DEFAULT_LAYOUT = Path(__file__).resolve().parents[1] / "layouts" / "techhub_default.yaml"
+TRIAL_LAYOUT = Path(__file__).resolve().parents[1] / "layouts" / "techhub_trial_4p8.yaml"
 
 
 @pytest.fixture(scope="module")
@@ -184,6 +185,14 @@ def test_noise_json_overrides_physics(layout, tmp_path):
 
 def test_default_layout_covers_every_test_position(layout):
     assert check_coverage(layout, layout.physics, min_anchors=3) == []
+
+
+def test_recapture_layout_covers_every_test_position():
+    # Option B (#49): with the physics fitted to the TechHub pilot, the four
+    # stands in a 2.4 m square reach every Test position of the 4.8 m area.
+    trial = load_layout(TRIAL_LAYOUT)
+    assert len(trial.reference_points) == 21
+    assert check_coverage(trial, trial.physics, min_anchors=3) == []
 
 
 def test_coverage_uses_the_named_target(layout):

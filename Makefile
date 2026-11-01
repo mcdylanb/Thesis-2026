@@ -20,7 +20,7 @@ UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim import-session calibration-report trim-ablation calibration-plots eval eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim import-session calibration-report trim-ablation calibration-plots layout-search eval eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -50,6 +50,9 @@ trim-ablation: ## Trimmed vs untrimmed Radio map for REAL  | win: run the import
 
 calibration-plots: ## Heatmaps over the room for REAL (after the two above) | win: uv run --extra viz python -m gateway.plot_calibration --report out/techhub/report/report.json --loo out/techhub/trim_ablation/loo.json --out out/techhub/plots
 	$(RUN) --extra viz python -m gateway.plot_calibration --report $(REAL)/report/report.json --loo $(REAL)/trim_ablation/loo.json --layout $(LAYOUT) --out $(REAL)/plots
+
+layout-search: ## Anchor layouts vs the REAL fitted signal fade | win: uv run python -m gateway.layout_search --report out/techhub/report/report.json --layout layouts/techhub_default.yaml --out out/techhub/layout_search
+	$(RUN) python -m gateway.layout_search --report $(REAL)/report/report.json --layout $(LAYOUT) --out $(REAL)/layout_search
 
 eval: sim ## k-NN, Scout and proposed side by side   | win: run the sim line, then uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0
 	$(RUN) --extra scout python -m gateway.sniper --sim $(SIM) --layout $(LAYOUT) --out out/eval --min-stability $(SIM_MIN_STABILITY)

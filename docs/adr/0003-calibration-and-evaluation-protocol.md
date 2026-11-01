@@ -87,3 +87,13 @@ p90 error, fallback rate and per-window latency, for both pipelines.
 - The precedents above are traced to primary sources in
   `docs/research/2026-09-18-adr-0002-0003-validation.md`; the citation keys
   are in `thesis/references.bib`.
+
+## Amendments
+
+**2026-11-01, Reference grid spacing (TechHub, #44).** The TechHub
+Calibration session used a 1.2 m lattice (every second 60 cm floor tile),
+not the "roughly 1 m" above: 62 Reference points over 12 × 6 m, which at
+a median 6.4 min per point took two days. 1.2 m is still denser than Horus's
+1.52–2.13 m grids, so the precedent argument above holds. The spacing does
+coarsen what leave-one-out and the Radio map can resolve, so a median error
+near 1.2 m is not evidence of a better localizer.

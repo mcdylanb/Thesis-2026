@@ -7,6 +7,11 @@ day. Findings, where every number comes from, and the next steps:
 `docs/findings/2026-11-01-techhub-calibration.md`. Work is tracked in
 GitHub issue #57 and its sub-issues.
 
+Decided 2026-11-02 (#49, ADR-0003 Amendments): the recapture uses a
+4.8 x 4.8 m trial area with the four Anchors on stands in a 2.4 m square,
+21 Reference points: `layouts/techhub_trial_4p8.yaml`. Next: the live
+checker `make check-point` (#50), which must run on native Windows.
+
 ## Agent skills
 
 ### Issue tracker

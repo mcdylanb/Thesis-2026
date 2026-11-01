@@ -24,6 +24,7 @@ from gateway.parser import load_session
 from gateway.windowing import assign_windows
 
 DEFAULT_ANCHORS = ("A1", "A2", "A3", "A4")
+DEFAULT_MIN_ANCHORS = 3   # ADR-0002; change only with an amendment
 
 
 @dataclass
@@ -32,7 +33,7 @@ class PreprocessConfig:
     out: Path
     devices: Optional[Path] = None
     window_s: float = 1.0
-    min_anchors: int = 3
+    min_anchors: int = DEFAULT_MIN_ANCHORS
     min_pkts: int = 1
     rssi_method: str = "ewma"
     ewma_alpha: float = 0.3
@@ -114,7 +115,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--devices", help="authorized-device list (YAML or JSON)")
     ap.add_argument("--window", type=float, default=1.0, dest="window_s",
                     help="capture window length in seconds (default 1.0)")
-    ap.add_argument("--min-anchors", type=int, default=3,
+    ap.add_argument("--min-anchors", type=int, default=DEFAULT_MIN_ANCHORS,
                     help="anchors required for a sufficient window (default 3)")
     ap.add_argument("--min-pkts-per-anchor", type=int, default=1, dest="min_pkts")
     ap.add_argument("--rssi-smoothing", choices=("ewma", "median", "mean"),

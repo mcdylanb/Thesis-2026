@@ -20,7 +20,9 @@ and moving Anchors (ADR-0003); it changes no threshold itself.
 - Sniper eligibility: the above-floor rate over heard (window, Anchor)
   pairs, and the share of Beacon windows with >= min_anchors Anchors above
   the floor, which bounds how often the Sniper can run.
-- Day boundary: the session is split into days at gaps > 6 h; for every
+- Day boundary: the session is split into days at gaps > 6 h. Per day,
+  its first and last Beacon Record and how often each Anchor heard the
+  Beacon (share of the day's Beacon windows); and, for every
   ambient transmitter heard >= 50 times by an Anchor on both sides, the
   change in its median RSSI. Only a device that sits still separates drift
   from movement: a locally administered (randomized) MAC is usually a phone
@@ -33,16 +35,17 @@ import argparse
 import json
 import statistics
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
-from gateway.evaluate import preprocess_session
+from gateway.evaluate import MIN_SUFFICIENT_WINDOWS, preprocess_session
 from gateway.parser import iter_logged_records
+from gateway.preprocess import DEFAULT_MIN_ANCHORS
 from gateway.radiomap import build_radio_map
 from gateway.records import CsiRecord, ParseStats
 from gateway.trials import placed_device, windows_by_trial
 
-MIN_SUFFICIENT = 30          # ADR-0003: a Trial needs >= 30 sufficient windows
 LOW_TRAFFIC_FRAC = 0.1
 DAY_GAP_S = 6 * 3600.0
 MIN_DRIFT_RECORDS = 50
@@ -81,6 +84,19 @@ def _days(trials: List[dict]) -> List[List[str]]:
     return days
 
 
+def _day_summary(points: List[str], truth: dict, by_trial: Dict[str, List[dict]],
+                 anchor_ids: List[str]) -> dict:
+    trials = {t["id"]: t for t in truth["trials"]}
+    ws = [w for p in points for w in by_trial[p]]
+    return {
+        "points": points,
+        "start": min(trials[p].get("beacon_first", trials[p]["t_start"]) for p in points),
+        "end": max(trials[p].get("beacon_last", trials[p]["t_end"]) for p in points),
+        "hear_rate": {a: (sum(1 for w in ws if w["anchors"].get(a)) / len(ws)
+                          if ws else None) for a in anchor_ids},
+    }
+
+
 def _random_mac(mac: str) -> bool:
     """Locally administered bit set: a randomized MAC, usually a phone."""
     return bool(int(mac.split(":")[0], 16) & 0x02)
@@ -114,7 +130,7 @@ def calibration_report(
     truth: dict,
     traffic: dict,
     faults: Optional[Dict[str, Sequence[str]]] = None,
-    min_anchors: int = 3,
+    min_anchors: int = DEFAULT_MIN_ANCHORS,
 ) -> dict:
     """The four-part report (module docstring) as a JSON-ready dict."""
     faults = {a: set(ps) for a, ps in (faults or {}).items()}
@@ -131,7 +147,7 @@ def calibration_report(
         tid, ws = trial["id"], by_trial[trial["id"]]
         n_sufficient = sum(1 for w in ws if w["sufficient"])
         hole = "empty" if n_sufficient == 0 else (
-            "below_30" if n_sufficient < MIN_SUFFICIENT else None)
+            "below_30" if n_sufficient < MIN_SUFFICIENT_WINDOWS else None)
         if hole:
             recapture.append(tid)
         anchors = {}
@@ -169,7 +185,7 @@ def calibration_report(
             "min_anchors": min_anchors,
         },
         "faults": {a: sorted(ps) for a, ps in faults.items()},
-        "drift": {"days": [{"points": d} for d in days],
+        "drift": {"days": [_day_summary(d, truth, by_trial, anchor_ids) for d in days],
                   "rows": _drift(days, traffic["ambient_rssi"])},
     }
 
@@ -186,13 +202,14 @@ def format_markdown(report: dict, title: str) -> str:
     lines = [
         f"# {title}", "",
         f"- Reference points: {len(report['points'])}",
-        f"- Need recapture (< {MIN_SUFFICIENT} sufficient windows): "
+        f"- Need recapture (< {MIN_SUFFICIENT_WINDOWS} sufficient windows): "
         f"{', '.join(report['recapture']) or 'none'}",
         f"- Above-floor rate (heard window x Anchor pairs): {_pct(floor['rate'])}",
         f"- Beacon windows with >= {floor['min_anchors']} Anchors above the floor "
         f"(Sniper can run): {_pct(floor['sniper_eligible_rate'])}",
-        "- Field-noted faults: " + (", ".join(
-            f"{a} at {', '.join(ps)}" for a, ps in report["faults"].items()) or "none"),
+        "- Field-noted faults (from the field notes, not inferred from the data): "
+        + (", ".join(f"{a} at {', '.join(ps)}" for a, ps in report["faults"].items())
+           or "none"),
         "", "Cells: median Beacon RSSI (above-floor share); `range` = not heard, "
         "`FAULT` = field-noted fault, `*` = low traffic.", "",
         "| point | x, y | sufficient | hole | " + " | ".join(anchors) + " |",
@@ -211,8 +228,17 @@ def format_markdown(report: dict, title: str) -> str:
                      f"{p['hole'] or ''} | " + " | ".join(cells) + " |")
     drift = report["drift"]
     lines += ["", "## Day boundary", "",
-              " / ".join(f"day {i + 1}: {d['points'][0]}-{d['points'][-1]}"
-                         for i, d in enumerate(drift["days"])), ""]
+              "Times are the first and last Beacon Record, in this machine's local "
+              "time. Hear rate: share of the day's Beacon windows in which the "
+              "Anchor heard the Beacon.", "",
+              "| day | points | from | to | " + " | ".join(anchors) + " |",
+              "|---|---|---|---|" + "---|" * len(anchors)]
+    for i, d in enumerate(drift["days"]):
+        start, end = datetime.fromtimestamp(d["start"]), datetime.fromtimestamp(d["end"])
+        lines.append(f"| {i + 1} | {d['points'][0]}-{d['points'][-1]} | "
+                     f"{start:%Y-%m-%d %H:%M} | {end:%H:%M} | "
+                     + " | ".join(_pct(d["hear_rate"][a]) for a in anchors) + " |")
+    lines.append("")
     if drift["rows"]:
         lines += ["`(random)` = randomized MAC, likely a phone that moved; "
                   "only the others measure drift.", "",
@@ -253,8 +279,9 @@ def main(argv=None) -> int:
     faults: Dict[str, List[str]] = {}
     for anchor, pts in args.fault:
         faults.setdefault(anchor, []).extend(pts)
-    report = calibration_report(windows, truth, scan_captures(args.session, truth),
-                                faults, min_anchors=meta.get("min_anchors", 3))
+    report = calibration_report(
+        windows, truth, scan_captures(args.session, truth), faults,
+        min_anchors=meta.get("min_anchors", DEFAULT_MIN_ANCHORS))
     with open(args.out / "report.json", "w") as fh:
         json.dump(report, fh, indent=2)
     md = format_markdown(report, f"Calibration report: {args.session}")

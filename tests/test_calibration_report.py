@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gateway.calibration_report import calibration_report
+from gateway.calibration_report import calibration_report, format_markdown
 
 BEACON = "68:fe:71:fa:df:fc"
 ANCHORS = ("A1", "A2", "A3", "A4")
@@ -99,3 +99,18 @@ def test_day_boundary_drift_uses_ambient_devices(report):
     assert (row["anchor"], row["mac"]) == ("A1", "3c:8a:1f:9a:66:c8")
     assert row["delta_db"] == pytest.approx(-6.0)
     assert row["random_mac"] is False        # 0x3c: globally administered
+
+
+def test_each_day_reports_how_often_each_anchor_heard_the_beacon(report):
+    day1, day2 = report["drift"]["days"]
+    # Day 1: p1's 40 Beacon windows (all four Anchors) + p2's 20 (A3, A4 only).
+    assert day1["hear_rate"] == pytest.approx(
+        {"A1": 40 / 60, "A2": 40 / 60, "A3": 1.0, "A4": 1.0})
+    # Day 2: p3's one window, heard by A1 only.
+    assert day2["hear_rate"] == pytest.approx({"A1": 1.0, "A2": 0.0, "A3": 0.0, "A4": 0.0})
+    assert (day1["start"], day1["end"]) == (0.0, 1_100.0)
+
+
+def test_markdown_says_faults_come_from_the_field_notes(report):
+    md = format_markdown(report, "t")
+    assert "from the field notes, not inferred from the data" in md

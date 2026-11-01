@@ -105,6 +105,7 @@ make preprocess DATA=synth_data OUT=out/synth.jsonl
 make import-session                                 # real Calibration session (one zip per Reference point) -> out/techhub/calibration/, trimmed 30 s + 4 min; add --untrimmed via the module
 make calibration-report                             # its Radio map + holes / Anchor coverage / above-floor / day-drift report (out/techhub/report/report.md)
 make trim-ablation                                  # trimmed vs untrimmed Radio map: per-point differences + leave-one-out sanity check (out/techhub/trim_ablation/)
+make calibration-plots                              # heatmaps over the room: RSSI per Anchor, coverage, leave-one-out error (out/techhub/plots/)
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
 make preprocess DATA=sim_data/calibration/p1 OUT=out/p1.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
@@ -130,7 +131,8 @@ copy `gateway/devices.example.yaml`.
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
 | `make import-session` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub` |
 | `make calibration-report` | `uv run python -m gateway.calibration_report --session out/techhub/calibration --out out/techhub/report --fault A1:p28,p47,p53,p57,p61` |
-| `make trim-ablation` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub_untrimmed --untrimmed`, then `uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation` |
+| `make trim-ablation` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub`, then the same with `--out out/techhub_untrimmed --untrimmed`, then `uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation` |
+| `make calibration-plots` | `uv run --extra viz python -m gateway.plot_calibration --report out/techhub/report/report.json --loo out/techhub/trim_ablation/loo.json --out out/techhub/plots` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
 | `make eval` | run the `make sim` line, then `uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0` |
 | `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |

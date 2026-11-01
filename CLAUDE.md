@@ -1,3 +1,12 @@
+## Current status: read first
+
+The TechHub Calibration session (29-30 Oct 2026) worked as a pilot only. With
+corner Anchors the Sniper can run in 0.5 % of Beacon windows, so the layout
+must change and the session must be recorded again before the Test-position
+day. Findings, where every number comes from, and the next steps:
+`docs/findings/2026-11-01-techhub-calibration.md`. Work is tracked in
+GitHub issue #57 and its sub-issues.
+
 ## Agent skills
 
 ### Issue tracker

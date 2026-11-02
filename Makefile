@@ -20,7 +20,7 @@ UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim import-session calibration-report trim-ablation calibration-plots layout-search eval eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim import-session calibration-report trim-ablation calibration-plots layout-search eval eval-baseline eval-scout preprocess listen check-point capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -68,6 +68,9 @@ preprocess: ## Windows+features from captures in DATA  | win: uv run python -m g
 
 listen: ## Wireless: land the Relay's UDP stream   | win: uv run python scripts/relay_udp_listener.py --outdir data
 	$(RUN) python scripts/relay_udp_listener.py --bind-ip $(BIND_IP) --port $(UDP_PORT) --outdir $(DATA)
+
+check-point: ## Live: does this point have 3 strong Anchors? | win: uv run python -m gateway.check_point --data data
+	$(RUN) python -m gateway.check_point --data $(DATA)
 
 capture: ## Serial fallback: PORT=/dev/cu.usbserial-XXXX | win: uv run python scripts/uart_listener_2.py --port COM3 --outdir data
 	$(RUN) python scripts/uart_listener_2.py --port $(PORT) --outdir $(DATA)

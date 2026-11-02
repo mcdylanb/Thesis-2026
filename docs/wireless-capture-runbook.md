@@ -200,7 +200,36 @@ session timestamp.
 `data/A1_<ts>.csv`..`data/A4_<ts>.csv` all grow. The Anchor nearest the
 target should have the strongest RSSI.
 
-## 10. After the trial
+## 10. Check each Reference point while it records
+
+During a Calibration session, start a fresh `make listen` for every point
+(so each point has its own session timestamp), then, in a second terminal:
+
+```sh
+make check-point         # Windows: uv run python -m gateway.check_point --data data
+```
+
+Every 3 s it shows each Anchor's Beacon signal over the last 30 s and a
+verdict for the point (layout: `layouts/techhub_trial_4p8.yaml`):
+
+| Verdict | Meaning | Do |
+|---|---|---|
+| `KEEP RECORDING` | 3+ Anchors strong, recording not yet 4:30 | wait |
+| `GOOD` | 3+ Anchors strong, 4:30 recorded, 30+ sufficient windows | stop `make listen`, move to the next point |
+| `WEAK` | fewer than 3 Anchors above -80 dBm in most windows | check the weak Anchors (power, antenna, line of sight, nobody standing between); if it stays weak, finish the point anyway and write it in the field notes |
+| `NO BEACON` | no Beacon Records | Beacon on? `make listen` receiving? |
+
+An Anchor is `strong` when it hears the Beacon above -80 dBm in more than
+half of the windows; the Sniper needs 3. Stand away from the Beacon while
+it records: a body between it and an Anchor costs several dB.
+
+Replay a recorded point (one verdict over its whole kept recording):
+`uv run python -m gateway.check_point --data out/techhub/calibration/p56 --layout layouts/techhub_default.yaml --once --span 0`.
+
+✅ **Checkpoint:** the first two pilot points (R01, R03) end `GOOD` before
+the rest of the session is recorded (#53).
+
+## 11. After the trial
 
 1. Ctrl-C `make listen`. Files are closed on exit.
 2. Copy `data/` somewhere safe. It is git-ignored.

@@ -11,6 +11,7 @@ laptop turns the stream into localization features. Terms are defined in
  Anchor A3 ─┼──────────▶ Relay ──────────────────────────▶ Gateway laptop
  Anchor A4 ─┘                                               ├─ make listen   → data/<Anchor>_<ts>.csv  (Captures)
                                                             ├─ make dashboard  → live CSI/RSSI plots of the newest Capture
+                                                            ├─ make check-point → live verdict: 3 Anchors strong at this point?
                                                             └─ make preprocess → windows + D-CFR features
 ```
 
@@ -92,6 +93,9 @@ hop (MP700 → Relay → laptop → Anchors → target) before moving on.
    *who* the Anchor is hearing. `--exclude-mac <Relay MAC>` hides the Relay's
    own traffic. The MATLAB `firmware/tools/matlab/realtime_csi_dashboard.m` is
    the legacy equivalent.
+6. Calibration session: `make check-point` (plain text, any terminal) shows
+   per Anchor whether it hears the Beacon above -80 dBm, and says `GOOD`
+   when the point can be left. See the runbook's step 10.
 
 Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial-XXXX`
 (Windows: `--port COM3`). Same Capture files.
@@ -125,6 +129,7 @@ copy `gateway/devices.example.yaml`.
 | `make setup` | `uv sync --extra dev --extra capture --extra viz --extra scout` |
 | `make test` | `uv run --extra dev --extra scout pytest` |
 | `make listen` | `uv run python scripts/relay_udp_listener.py --outdir data` |
+| `make check-point` | `uv run python -m gateway.check_point --data data` |
 | `make dashboard` | `uv run python scripts/live_csi_dashboard.py --data data --anchor A1` |
 | `make replay FILE=data/A1_x.csv` | `uv run python scripts/live_csi_dashboard.py --file data/A1_x.csv --from-start --replay-rate 6` |
 | `make capture PORT=COM3` | `uv run python scripts/uart_listener_2.py --port COM3 --outdir data` |

@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from gateway.parser import (
+    parse_logged_row,
     CsiPayload,
     StatPayload,
     iter_logged_records,
@@ -273,3 +274,15 @@ def test_unrecognised_header_falls_back_to_logger_format(tmp_path):
     stats = ParseStats()
     assert list(iter_logged_records(path, stats)) == []
     assert stats.malformed == stats.total_rows == len(lines) - 1
+
+
+def test_parse_logged_row_reads_one_tailed_row(csi_line):
+    # The live checker parses rows as they are appended, one at a time.
+    stats = ParseStats()
+    rec = parse_logged_row(["2026-10-30T14:16:25+00:00", "1", csi_line], stats)
+    assert isinstance(rec, CsiRecord)
+    assert (rec.anchor, rec.rssi) == ("A1", -58)
+    assert rec.t_host == pytest.approx(1793370985.0)
+    assert parse_logged_row(["2026-10-30T14:16:25+00:00", "1", "garbage"], stats) is None
+    assert parse_logged_row(["too", "short"], stats) is None
+    assert stats.csi == 1 and stats.malformed == 1

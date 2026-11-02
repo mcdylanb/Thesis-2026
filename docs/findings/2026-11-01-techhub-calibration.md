@@ -28,8 +28,10 @@ A4 (0, 0)), Beacon `68:fe:71:fa:df:fc`, 62 Reference points on a 1.2 m lattice
 
 1. **The Sniper almost never runs with this layout (the main finding).**
    Only 0.5 % of Beacon windows have >= 3 Anchors above the -80 dBm floor
-   (`report.md`). Only p56 has 3 Anchors above the floor in most windows;
-   most of the room has 0-1 (`plots/coverage.png`). Tested on the
+   (`report.md`). Only p56 has 3 Anchors above the floor in most of the
+   windows each one heard (`plots/coverage.png`); counting all windows, as
+   the Sniper needs, even p56 has only 2 (its A1 heard 72 of 179 windows),
+   so no point qualifies. Most of the room has 0-1. Tested on the
    current data, the comparison would be k-NN vs the Scout, nearly always
    with the Sniper skipped.
 2. **It is a distance problem.** Share of (point, Anchor) pairs whose median
@@ -126,8 +128,10 @@ one per 6 m^2 here). Measured in one open room; walls would shorten the range.
 
 1. Mark the trial area and the 21 Reference points on the floor tiles; put
    the Anchors on stands at the R07, R09, R17, R19 spots (`layouts/techhub_trial_4p8.yaml`).
-2. The co-author runs the live point checker during each point (#50,
-   `make check-point`) to see whether 3 Anchors clear -80 dBm before moving on.
+2. The co-author runs the live point checker during each point
+   (`make check-point`, ready; runbook step 10) and moves on at `GOOD`.
+   Replayed over the 62 pilot points it agrees with `calibration-report` on
+   every point's 30-window verdict.
 3. Upload the day's zips the same day; the report and plots run that evening.
 4. Recapture holes the next morning, before anything is moved.
 5. Do not move the Anchors between Calibration and the Test-position day.

@@ -1,0 +1,146 @@
+# TechHub Trial layout for the recapture (option B, decided 2026-11-02, #49):
+# a 4.8 x 4.8 m trial area inside the TechHub room, four Anchors on stands
+# in a 2.4 m square in its middle. Used by the spatial simulator
+# (gateway/sim.py), the evaluation harness and the next Calibration session.
+#
+# Why: the TechHub pilot's signal fade (`make layout-search`,
+# out/techhub/layout_search/summary.md) gives one Anchor a range of 3.9 m at
+# the -80 dBm floor. Four Anchors cover at most about 4.8 x 4.8 m, and only
+# when they stand 1.2 m in from every edge: in the corners they cover 20 %
+# of it, at the wall midpoints 67 %, in this square 100 %. The whole 12 x 6 m
+# room would need about 11 Anchors. See ADR-0003, Amendments.
+#
+# Room: the trial area, 8 x 8 floor tiles of 60 cm, marked on the TechHub
+# floor; its walls are not real walls (the simulator's reflections treat
+# them as walls). Anchors and the Beacon sit at the same height as in the
+# pilot (77 cm tables), so the geometry is 2-D.
+#
+# Coordinates are metres; origin (0, 0) is one corner of the trial area, x
+# and y run along its two edges.
+
+room:
+  width_m: 4.8
+  height_m: 4.8
+
+# Anchors on stands, 1.2 m (two tiles) in from each edge, 2.4 m apart.
+anchors:
+  A1: [1.2, 3.6]
+  A2: [3.6, 3.6]
+  A3: [3.6, 1.2]
+  A4: [1.2, 1.2]
+
+# Reference points: the 1.2 m lattice (every second tile line, ADR-0003
+# Amendments), 5 x 5 = 25 corners less the four Anchor spots = 21 points.
+# Named R01..R25 row by row from the origin (x fastest), so a name gives its
+# spot; R07, R09, R17 and R19 are the Anchors and are skipped. The walk
+# order on the day may differ; record it in the field notes.
+#
+#   y\x 0.0  1.2  2.4  3.6  4.8
+#   4.8 R21  R22  R23  R24  R25
+#   3.6 R16   A1  R18   A2  R20
+#   2.4 R11  R12  R13  R14  R15
+#   1.2 R06   A4  R08   A3  R10
+#   0.0 R01  R02  R03  R04  R05
+reference_points:
+  R01: [0.0, 0.0]
+  R02: [1.2, 0.0]
+  R03: [2.4, 0.0]
+  R04: [3.6, 0.0]
+  R05: [4.8, 0.0]
+  R06: [0.0, 1.2]
+  R08: [2.4, 1.2]
+  R10: [4.8, 1.2]
+  R11: [0.0, 2.4]
+  R12: [1.2, 2.4]
+  R13: [2.4, 2.4]
+  R14: [3.6, 2.4]
+  R15: [4.8, 2.4]
+  R16: [0.0, 3.6]
+  R18: [2.4, 3.6]
+  R20: [4.8, 3.6]
+  R21: [0.0, 4.8]
+  R22: [1.2, 4.8]
+  R23: [2.4, 4.8]
+  R24: [3.6, 4.8]
+  R25: [4.8, 4.8]
+
+# Held-out Test positions P1..P10 (ADR-0003). PROVISIONAL until #52 checks
+# them on site: 1.2 m cell centres, so each is 0.85 m from every Reference
+# point and Anchor (the loader rejects < 0.3 m), and >= 0.6 m from the
+# internal zone edges. 2-3 per zone, corners, edges and the middle.
+test_positions:
+  P1: [0.6, 0.6]
+  P2: [3.0, 0.6]
+  P3: [4.2, 0.6]
+  P4: [1.8, 1.8]
+  P5: [4.2, 1.8]
+  P6: [0.6, 3.0]
+  P7: [3.0, 3.0]
+  P8: [0.6, 4.2]
+  P9: [1.8, 4.2]
+  P10: [4.2, 4.2]
+
+# Coarse zones for the zone-accuracy metric (ADR-0003: >= ~90 % target).
+# Rectangles [x0, y0, x1, y1] that must tile the room exactly; a point on a
+# shared edge belongs to the zone with the larger coordinate. Every Test
+# position must be >= 0.3 m from an internal zone edge; the loader enforces
+# it. A 2 x 2 split, one zone per Anchor.
+zones:
+  Z1: [0.0, 0.0, 2.4, 2.4]
+  Z2: [2.4, 0.0, 4.8, 2.4]
+  Z3: [0.0, 2.4, 2.4, 4.8]
+  Z4: [2.4, 2.4, 4.8, 4.8]
+
+# Transmitters, as in techhub_default.yaml (see there for the keys); the
+# ambient devices are moved inside the trial area.
+devices:
+  beacon:
+    role: beacon
+    mac: "68:fe:71:fa:df:fc"   # the TechHub Beacon
+    mode: steady
+    rate_hz: 20.0
+    tx_offset_db: 0.0
+    gain: 1.0
+    tilt: 0.0
+  phone:
+    role: target            # the cross-device Trial's transmitter
+    mac: "3c:22:fb:aa:10:07"
+    mode: steady
+    rate_hz: 20.0
+    tx_offset_db: -4.0
+    gain: 0.8
+    tilt: 0.4
+  plug:
+    role: ambient           # present in every Trial at a fixed spot
+    mac: "d8:f1:5b:21:7c:3a"
+    mode: sporadic
+    rate_hz: 0.1
+    burst_mean: 3
+    position: [4.5, 4.5]
+    tx_offset_db: -2.0
+    gain: 1.1
+    tilt: -0.2
+  camera:
+    role: ambient
+    mac: "7c:a7:b0:4e:02:91"
+    mode: sporadic
+    rate_hz: 0.1
+    burst_mean: 3
+    position: [0.3, 2.0]
+    tx_offset_db: 2.0
+    gain: 0.9
+    tilt: 0.3
+
+# Physics: RSSI keys fitted to the TechHub pilot by `make layout-search`
+# (222 heard (point, Anchor) pairs); the CSI keys are the ADR-0002 defaults.
+physics:
+  rssi_at_1m_dbm: -66.4       # P0 of the log-distance model (fitted)
+  path_loss_exponent: 2.29    # n (fitted)
+  rssi_shadowing_db: 4.5      # spread around the fit, per (Anchor, position)
+  rssi_jitter_db: 2.0         # per-packet RSSI noise sd
+  sensitivity_dbm: -95.0      # packets weaker than this are not received
+  wall_reflection: 0.8        # amplitude reflection coefficient of every wall
+  reflection_order: 4         # image sources up to this many wall bounces
+  phase_wavelength_m: 8.0     # effective wavelength of each path's phase
+  csi_mean_amplitude: 30.0    # per-frame auto-scaled CSI level (manu_scale = false)
+  csi_noise: 0.8              # per-packet CSI amplitude noise sd

@@ -87,3 +87,33 @@ p90 error, fallback rate and per-window latency, for both pipelines.
 - The precedents above are traced to primary sources in
   `docs/research/2026-09-18-adr-0002-0003-validation.md`; the citation keys
   are in `thesis/references.bib`.
+
+## Amendments
+
+**2026-11-01, Reference grid spacing (TechHub, #44).** The TechHub
+Calibration session used a 1.2 m lattice (every second 60 cm floor tile),
+not the "roughly 1 m" above: 62 Reference points over 12 × 6 m, which at
+a median 6.4 min per point took two days. 1.2 m is still denser than Horus's
+1.52–2.13 m grids, so the precedent argument above holds. The spacing does
+coarsen what leave-one-out and the Radio map can resolve, so a median error
+near 1.2 m is not evidence of a better localizer.
+
+**2026-11-02, Trial area and Anchor layout for the recapture (#49).** The
+TechHub pilot (four corner Anchors, 12 × 6 m) met the placement rule above
+at 1 of 62 Reference points. Fitting its RSSI against distance
+(`make layout-search`, `out/techhub/layout_search/summary.md`) gives one
+Anchor a range of 3.9 m at the −80 dBm floor (2.9 m with a 3 dB margin;
+shadowing sd 4.5 dB). By that range the whole room needs about 11 Anchors
+placed in and around it, or 13 on the walls, while four Anchors cover at
+most about 4.8 × 4.8 m. We keep the six-ESP32 hardware above and shrink the
+trial area: **4.8 × 4.8 m inside TechHub, the four Anchors on stands in a
+2.4 m square, 1.2 m in from every edge** (`layouts/techhub_trial_4p8.yaml`).
+Placed in that area's corners the same Anchors meet the rule over 20 % of
+it, at its wall midpoints 67 %, in this square 100 %. 21 Reference points on
+the 1.2 m lattice. The area is within FILA's 3 × 4 m to 5 × 8 m room-scale
+testbeds. The −80 dBm floor and `min_anchors = 3` are unchanged (ADR-0002).
+Limitation to report: the system needs every position within about 4 m of
+3 Anchors, so a larger room needs more Anchors (about one per 6 m² of floor
+here). The area's corners and edge midpoints sit right at the floor by the
+model, so some will be weak on the day: the live checker (#50) shows which,
+and there the Sniper falls back to the Scout by design.

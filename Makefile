@@ -11,13 +11,16 @@ SYNTH   ?= synth_data
 SIM     ?= sim_data
 LAYOUT  ?= layouts/techhub_default.yaml
 SIM_MIN_STABILITY ?= 0
+SESSION_SRC ?= data/4-sniffer-1-beacon-mode-irl/compiled_data
+REAL    ?= out/techhub
+FAULTS  ?= --fault A1:p28,p47,p53,p57,p61
 PORT    ?= /dev/ttyUSB0
 BIND_IP ?= 0.0.0.0
 UDP_PORT ?= 5555
 ANCHOR  ?= A1
 FILE    ?= $(lastword $(sort $(wildcard $(DATA)/$(ANCHOR)_*.csv)))
 
-.PHONY: help setup test synth sim eval eval-baseline eval-scout preprocess listen capture dashboard replay thesis clean
+.PHONY: help setup test synth sim import-session calibration-report trim-ablation calibration-plots layout-search eval eval-baseline eval-scout preprocess listen check-point capture dashboard replay thesis clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -34,6 +37,23 @@ synth: ## Generate a synthetic Trial's Captures      | win: uv run python -m gat
 sim: ## Simulated calibration + test sessions      | win: uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data
 	$(RUN) python -m gateway.sim --layout $(LAYOUT) --out $(SIM)
 
+import-session: ## Real per-point zips in SESSION_SRC -> REAL | win: uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub
+	$(RUN) python -m gateway.session_import --src $(SESSION_SRC) --out $(REAL) --layout $(LAYOUT)
+
+calibration-report: ## Radio map + quality report for REAL | win: uv run python -m gateway.calibration_report --session out/techhub/calibration --out out/techhub/report --fault A1:p28,p47,p53,p57,p61
+	$(RUN) python -m gateway.calibration_report --session $(REAL)/calibration --out $(REAL)/report $(FAULTS)
+
+trim-ablation: ## Trimmed vs untrimmed Radio map for REAL  | win: run the import-session line, then again with --untrimmed --out out/techhub_untrimmed, then uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation
+	$(RUN) python -m gateway.session_import --src $(SESSION_SRC) --out $(REAL) --layout $(LAYOUT)
+	$(RUN) python -m gateway.session_import --src $(SESSION_SRC) --out $(REAL)_untrimmed --layout $(LAYOUT) --untrimmed
+	$(RUN) python -m gateway.trim_ablation --trimmed $(REAL) --untrimmed $(REAL)_untrimmed --out $(REAL)/trim_ablation
+
+calibration-plots: ## Heatmaps over the room for REAL (after the two above) | win: uv run --extra viz python -m gateway.plot_calibration --report out/techhub/report/report.json --loo out/techhub/trim_ablation/loo.json --out out/techhub/plots
+	$(RUN) --extra viz python -m gateway.plot_calibration --report $(REAL)/report/report.json --loo $(REAL)/trim_ablation/loo.json --layout $(LAYOUT) --out $(REAL)/plots
+
+layout-search: ## Anchor layouts vs the REAL fitted signal fade | win: uv run python -m gateway.layout_search --report out/techhub/report/report.json --layout layouts/techhub_default.yaml --out out/techhub/layout_search
+	$(RUN) python -m gateway.layout_search --report $(REAL)/report/report.json --layout $(LAYOUT) --out $(REAL)/layout_search
+
 eval: sim ## k-NN, Scout and proposed side by side   | win: run the sim line, then uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0
 	$(RUN) --extra scout python -m gateway.sniper --sim $(SIM) --layout $(LAYOUT) --out out/eval --min-stability $(SIM_MIN_STABILITY)
 
@@ -48,6 +68,9 @@ preprocess: ## Windows+features from captures in DATA  | win: uv run python -m g
 
 listen: ## Wireless: land the Relay's UDP stream   | win: uv run python scripts/relay_udp_listener.py --outdir data
 	$(RUN) python scripts/relay_udp_listener.py --bind-ip $(BIND_IP) --port $(UDP_PORT) --outdir $(DATA)
+
+check-point: ## Live: does this point have 3 strong Anchors? | win: uv run python -m gateway.check_point --data data
+	$(RUN) python -m gateway.check_point --data $(DATA)
 
 capture: ## Serial fallback: PORT=/dev/cu.usbserial-XXXX | win: uv run python scripts/uart_listener_2.py --port COM3 --outdir data
 	$(RUN) python scripts/uart_listener_2.py --port $(PORT) --outdir $(DATA)

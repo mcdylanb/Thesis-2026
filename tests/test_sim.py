@@ -26,6 +26,7 @@ from gateway.sim import (
 )
 
 DEFAULT_LAYOUT = Path(__file__).resolve().parents[1] / "layouts" / "techhub_default.yaml"
+TRIAL_LAYOUT = Path(__file__).resolve().parents[1] / "layouts" / "techhub_trial_4p8.yaml"
 
 
 @pytest.fixture(scope="module")
@@ -43,9 +44,33 @@ def _dcfr(hw64):
 def test_default_layout_loads(layout):
     assert set(layout.anchors) == {"A1", "A2", "A3", "A4"}
     assert set(layout.test_positions) == {f"P{i}" for i in range(1, 11)}
+    assert layout.anchors == {
+        "A1": (0.0, 6.0), "A2": (12.0, 6.0), "A3": (12.0, 0.0), "A4": (0.0, 0.0),
+    }
+
+
+def test_default_layout_reference_points_follow_the_walk_order(layout):
+    # TechHub Calibration session: 1.2 m lattice, Anchor corners excluded,
+    # p1 next to A1, rows run A1 -> A2, one row toward A4 at a time.
     grid = reference_grid(layout)
-    assert len(grid) == 48
-    assert grid[0] == ("R01", 0.5, 0.5)
+    assert [name for name, _, _ in grid] == [f"p{i}" for i in range(1, 63)]
+    by_name = {name: (x, y) for name, x, y in grid}
+    assert by_name["p1"] == (1.2, 6.0)
+    assert by_name["p9"] == (10.8, 6.0)
+    assert by_name["p10"] == (0.0, 4.8)
+    assert by_name["p20"] == (12.0, 4.8)
+    assert by_name["p43"] == (0.0, 1.2)
+    assert by_name["p54"] == (1.2, 0.0)
+    assert by_name["p62"] == (10.8, 0.0)
+    assert not set(by_name.values()) & set(layout.anchors.values())
+
+
+def test_reference_point_outside_the_room_is_rejected(tmp_path):
+    text = DEFAULT_LAYOUT.read_text().replace("p62: [10.8, 0.0]", "p62: [10.8, -0.5]")
+    path = tmp_path / "outside.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match="p62"):
+        load_layout(path)
 
 
 def test_test_positions_are_held_out_of_grid(layout):
@@ -56,7 +81,7 @@ def test_test_positions_are_held_out_of_grid(layout):
 
 
 def test_test_position_on_grid_is_rejected(tmp_path):
-    text = DEFAULT_LAYOUT.read_text().replace("P1: [1.0, 1.0]", "P1: [1.5, 1.5]")
+    text = DEFAULT_LAYOUT.read_text().replace("P1: [1.8, 0.6]", "P1: [1.3, 0.1]")
     path = tmp_path / "bad.yaml"
     path.write_text(text)
     with pytest.raises(ValueError, match="P1"):
@@ -91,7 +116,7 @@ def test_neighbouring_grid_points_correlate_more_than_distant(layout):
         for (a, ax, ay), (b, bx, by) in itertools.combinations(grid, 2):
             d = np.hypot(ax - bx, ay - by)
             rho = np.corrcoef(fps[a], fps[b])[0, 1]
-            if d <= 1.0:
+            if d <= 1.2:                               # grid neighbours
                 near.append(rho)
             elif d >= 4.0:
                 far.append(rho)
@@ -162,8 +187,16 @@ def test_default_layout_covers_every_test_position(layout):
     assert check_coverage(layout, layout.physics, min_anchors=3) == []
 
 
+def test_recapture_layout_covers_every_test_position():
+    # Option B (#49): with the physics fitted to the TechHub pilot, the four
+    # stands in a 2.4 m square reach every Test position of the 4.8 m area.
+    trial = load_layout(TRIAL_LAYOUT)
+    assert len(trial.reference_points) == 21
+    assert check_coverage(trial, trial.physics, min_anchors=3) == []
+
+
 def test_coverage_uses_the_named_target(layout):
-    physics = dict(layout.physics, rssi_at_1m_dbm=-53.5)  # Beacon weakest -78 dBm, phone -82
+    physics = dict(layout.physics, rssi_at_1m_dbm=-49.3)  # Beacon weakest -78 dBm, phone -82
     assert check_coverage(layout, physics, min_anchors=4) == []
     assert check_coverage(layout, physics, min_anchors=4, target="phone")
 
@@ -190,13 +223,13 @@ def test_session_writes_trials_and_ground_truth(small_calibration, layout):
     session_dir, truth = small_calibration
     on_disk = json.loads((session_dir / "ground_truth.json").read_text())
     assert on_disk == truth
-    assert [t["id"] for t in truth["trials"]] == ["R01", "R02", "R03"]
+    assert [t["id"] for t in truth["trials"]] == ["p1", "p2", "p3"]
     trial = truth["trials"][0]
-    assert sorted(p.name for p in (session_dir / "R01").glob("*.csv")) == [
+    assert sorted(p.name for p in (session_dir / "p1").glob("*.csv")) == [
         f"{a}_sim.csv" for a in ("A1", "A2", "A3", "A4")
     ]
     beacon = next(d for d in trial["devices"] if d["role"] == "beacon")
-    assert (beacon["x"], beacon["y"]) == (0.5, 0.5)
+    assert (beacon["x"], beacon["y"]) == (1.2, 6.0)
     assert beacon["mac"] == layout.devices["beacon"].mac
     ambient = [d for d in trial["devices"] if d["role"] == "ambient"]
     assert {d["name"] for d in ambient} == {"plug", "camera"}
@@ -207,7 +240,7 @@ def test_session_writes_trials_and_ground_truth(small_calibration, layout):
 
 def test_output_parses_without_malformed_records(small_calibration):
     session_dir, _ = small_calibration
-    csi, stat, stats = load_session([session_dir / "R02"])
+    csi, stat, stats = load_session([session_dir / "p2"])
     assert stats.malformed == 0
     assert len(csi) > 0
     assert len(stat) == 4
@@ -218,7 +251,7 @@ def test_malformed_fraction_is_injected(layout, tmp_path):
         layout, tmp_path, "calibration", dwell_s=5.0, seed=4,
         positions=reference_grid(layout)[:1], malformed_frac=0.1,
     )
-    _, _, stats = load_session([tmp_path / "calibration" / "R01"])
+    _, _, stats = load_session([tmp_path / "calibration" / "p1"])
     assert stats.malformed == truth["trials"][0]["malformed"] > 0
 
 
@@ -227,14 +260,14 @@ def test_dropout_silences_anchor(layout, tmp_path):
         layout, tmp_path, "calibration", dwell_s=6.0, seed=5,
         positions=reference_grid(layout)[:1], dropouts=[("A3", 0.0, 6.0)],
     )
-    csi, _, _ = load_session([tmp_path / "calibration" / "R01"])
+    csi, _, _ = load_session([tmp_path / "calibration" / "p1"])
     assert csi and not [r for r in csi if r.anchor == "A3"]
 
 
 def test_beacon_windows_are_sufficient(small_calibration, layout, tmp_path):
     session_dir, _ = small_calibration
     beacon_mac = layout.devices["beacon"].mac
-    for trial in ("R01", "R02", "R03"):
+    for trial in ("p1", "p2", "p3"):
         summary = run(PreprocessConfig(
             inputs=[session_dir / trial], out=tmp_path / f"{trial}.jsonl",
             mac_filter=[beacon_mac],
@@ -260,13 +293,13 @@ def test_test_session_uses_target_device(layout, tmp_path):
 def test_zone_of_maps_every_test_position(layout):
     assert set(layout.zones) == {f"Z{i}" for i in range(1, 7)}
     assert zone_of(layout, 0.0, 0.0) == "Z1"
-    assert zone_of(layout, 8.0, 6.0) == "Z6"            # far corner belongs too
+    assert zone_of(layout, 12.0, 6.0) == "Z6"            # far corner belongs too
     for x, y in layout.test_positions.values():
         assert zone_of(layout, x, y) in layout.zones
 
 
 def test_zones_that_leave_a_gap_are_rejected(tmp_path):
-    text = DEFAULT_LAYOUT.read_text().replace("Z6: [5.3, 3.5, 8.0, 6.0]", "Z6: [5.3, 3.5, 7.0, 6.0]")
+    text = DEFAULT_LAYOUT.read_text().replace("Z6: [8.0, 3.0, 12.0, 6.0]", "Z6: [8.0, 3.0, 11.0, 6.0]")
     path = tmp_path / "gap.yaml"
     path.write_text(text)
     with pytest.raises(ValueError, match="zone"):
@@ -274,7 +307,7 @@ def test_zones_that_leave_a_gap_are_rejected(tmp_path):
 
 
 def test_test_position_on_a_zone_edge_is_rejected(tmp_path):
-    text = DEFAULT_LAYOUT.read_text().replace("P6: [4.0, 3.0]", "P6: [4.0, 3.4]")
+    text = DEFAULT_LAYOUT.read_text().replace("P6: [9.0, 1.8]", "P6: [8.1, 1.8]")
     path = tmp_path / "edge.yaml"
     path.write_text(text)
     with pytest.raises(ValueError, match="P6.*zone edge"):

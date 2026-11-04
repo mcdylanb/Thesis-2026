@@ -11,6 +11,7 @@ laptop turns the stream into localization features. Terms are defined in
  Anchor A3 ─┼──────────▶ Relay ──────────────────────────▶ Gateway laptop
  Anchor A4 ─┘                                               ├─ make listen   → data/<Anchor>_<ts>.csv  (Captures)
                                                             ├─ make dashboard  → live CSI/RSSI plots of the newest Capture
+                                                            ├─ make check-point → live verdict: 3 Anchors strong at this point?
                                                             └─ make preprocess → windows + D-CFR features
 ```
 
@@ -92,6 +93,9 @@ hop (MP700 → Relay → laptop → Anchors → target) before moving on.
    *who* the Anchor is hearing. `--exclude-mac <Relay MAC>` hides the Relay's
    own traffic. The MATLAB `firmware/tools/matlab/realtime_csi_dashboard.m` is
    the legacy equivalent.
+6. Calibration session: `make check-point` (plain text, any terminal) shows
+   per Anchor whether it hears the Beacon above -80 dBm, and says `GOOD`
+   when the point can be left. See the runbook's step 10.
 
 Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial-XXXX`
 (Windows: `--port COM3`). Same Capture files.
@@ -102,8 +106,13 @@ Serial fallback (Relay on USB, no hotspot): `make capture PORT=/dev/cu.usbserial
 make preprocess DATA=data OUT=out/windows.jsonl    # windows + features from Captures
 make synth                                          # synthetic Trial in synth_data/ when you have no hardware
 make preprocess DATA=synth_data OUT=out/synth.jsonl
+make import-session                                 # real Calibration session (one zip per Reference point) -> out/techhub/calibration/, trimmed 30 s + 4 min; add --untrimmed via the module
+make calibration-report                             # its Radio map + holes / Anchor coverage / above-floor / day-drift report (out/techhub/report/report.md)
+make trim-ablation                                  # trimmed vs untrimmed Radio map: per-point differences + leave-one-out sanity check (out/techhub/trim_ablation/)
+make calibration-plots                              # heatmaps over the room: RSSI per Anchor, coverage, leave-one-out error (out/techhub/plots/)
+make layout-search                                  # fit the signal fade to the report, search Anchor layouts, write a candidate layout (out/techhub/layout_search/)
 make sim                                            # simulated calibration + test sessions (one dir per Trial) in sim_data/
-make preprocess DATA=sim_data/calibration/R01 OUT=out/r01.jsonl
+make preprocess DATA=sim_data/calibration/p1 OUT=out/p1.jsonl
 make eval-baseline                                  # sim -> radio map -> k-NN baseline results table (out/eval/)
 make eval-scout                                     # same, plus the MDN Scout trained on that radio map (out/eval/scout.json, scout.pt)
 make eval                                           # k-NN, Scout and the proposed Scout -> fallback -> Sniper side by side, with fallback rate and latency (out/eval/proposed.json)
@@ -120,11 +129,17 @@ copy `gateway/devices.example.yaml`.
 | `make setup` | `uv sync --extra dev --extra capture --extra viz --extra scout` |
 | `make test` | `uv run --extra dev --extra scout pytest` |
 | `make listen` | `uv run python scripts/relay_udp_listener.py --outdir data` |
+| `make check-point` | `uv run python -m gateway.check_point --data data` |
 | `make dashboard` | `uv run python scripts/live_csi_dashboard.py --data data --anchor A1` |
 | `make replay FILE=data/A1_x.csv` | `uv run python scripts/live_csi_dashboard.py --file data/A1_x.csv --from-start --replay-rate 6` |
 | `make capture PORT=COM3` | `uv run python scripts/uart_listener_2.py --port COM3 --outdir data` |
 | `make preprocess` | `uv run python -m gateway --in data --out out/windows.jsonl --summary` |
 | `make synth` | `uv run python -m gateway.synth --out synth_data` |
+| `make import-session` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub` |
+| `make calibration-report` | `uv run python -m gateway.calibration_report --session out/techhub/calibration --out out/techhub/report --fault A1:p28,p47,p53,p57,p61` |
+| `make trim-ablation` | `uv run python -m gateway.session_import --src data/4-sniffer-1-beacon-mode-irl/compiled_data --out out/techhub`, then the same with `--out out/techhub_untrimmed --untrimmed`, then `uv run python -m gateway.trim_ablation --trimmed out/techhub --untrimmed out/techhub_untrimmed --out out/techhub/trim_ablation` |
+| `make calibration-plots` | `uv run --extra viz python -m gateway.plot_calibration --report out/techhub/report/report.json --loo out/techhub/trim_ablation/loo.json --out out/techhub/plots` |
+| `make layout-search` | `uv run python -m gateway.layout_search --report out/techhub/report/report.json --layout layouts/techhub_default.yaml --out out/techhub/layout_search` |
 | `make sim` | `uv run python -m gateway.sim --layout layouts/techhub_default.yaml --out sim_data` |
 | `make eval` | run the `make sim` line, then `uv run --extra scout python -m gateway.sniper --sim sim_data --layout layouts/techhub_default.yaml --out out/eval --min-stability 0` |
 | `make eval-baseline` | run the `make sim` line, then `uv run python -m gateway.evaluate --sim sim_data --layout layouts/techhub_default.yaml --out out/eval` |

@@ -185,6 +185,73 @@ def legacy_row_to_line(row: List[str]) -> Optional[str]:
     return f"CSI,{anchor},{seq},{mac},{rssi},0,{channel},0,{n_sub},{payload}"
 
 
+def parse_logged_row(
+    row: List[str], stats: ParseStats, legacy: bool = False
+) -> Optional[Union[CsiRecord, StatRecord]]:
+    """One Capture row (already split by csv) -> its Record, or None for a
+    malformed or non-Record row; counts it in `stats`. `legacy` selects the
+    Pi-era 10-column format. Used per file below and per appended row by the
+    live point checker."""
+    stats.total_rows += 1
+    if legacy:
+        line = legacy_row_to_line(row)
+    else:
+        line = row[2] if len(row) == 3 else None
+    if line is None:
+        stats.note_malformed(",".join(row))
+        return None
+    host_iso, host_ns_s = row[0], row[1]
+
+    payload = parse_firmware_line(line)
+    if payload is None:
+        stripped = line.strip()
+        if stripped.startswith(("CSI,", "STAT,")):
+            stats.note_malformed(line)
+        else:
+            stats.ignored_prefix += 1
+        return None
+
+    try:
+        t_host = _parse_host_iso(host_iso)
+        host_ns = int(host_ns_s)
+    except ValueError:
+        stats.note_malformed(",".join(row))
+        return None
+
+    if isinstance(payload, CsiPayload):
+        stats.csi += 1
+        stats.per_anchor[payload.anchor] = stats.per_anchor.get(payload.anchor, 0) + 1
+        return CsiRecord(
+            anchor=payload.anchor,
+            seq=payload.seq,
+            mac=payload.mac,
+            rssi=payload.rssi,
+            sig_mode=payload.sig_mode,
+            channel=payload.channel,
+            timestamp_us=payload.timestamp_us,
+            t_host=t_host,
+            host_ns=host_ns,
+            amps_hw=payload.amps_hw,
+            noise_floor=payload.noise_floor,
+            bandwidth=payload.bandwidth,
+            frame_control=payload.frame_control,
+            frame_seq=payload.frame_seq,
+            retry=payload.retry,
+            first_word_invalid=payload.first_word_invalid,
+        )
+    stats.stat += 1
+    return StatRecord(
+        anchor=payload.anchor,
+        uptime_ms=payload.uptime_ms,
+        pkts_seen=payload.pkts_seen,
+        csi_cb_count=payload.csi_cb_count,
+        queued=payload.queued,
+        dropped=payload.dropped,
+        free_heap=payload.free_heap,
+        t_host=t_host,
+    )
+
+
 def iter_logged_records(
     path: Union[str, Path], stats: ParseStats
 ) -> Iterator[Union[CsiRecord, StatRecord]]:
@@ -201,67 +268,9 @@ def iter_logged_records(
                 # legacy file then counts every row malformed, never misread.
                 legacy = row == LEGACY_HEADER
                 continue
-            stats.total_rows += 1
-            if legacy:
-                line = legacy_row_to_line(row)
-            else:
-                line = row[2] if len(row) == 3 else None
-            if line is None:
-                stats.note_malformed(",".join(row))
-                continue
-            host_iso, host_ns_s = row[0], row[1]
-
-            payload = parse_firmware_line(line)
-            if payload is None:
-                stripped = line.strip()
-                if stripped.startswith(("CSI,", "STAT,")):
-                    stats.note_malformed(line)
-                else:
-                    stats.ignored_prefix += 1
-                continue
-
-            try:
-                t_host = _parse_host_iso(host_iso)
-                host_ns = int(host_ns_s)
-            except ValueError:
-                stats.note_malformed(",".join(row))
-                continue
-
-            if isinstance(payload, CsiPayload):
-                stats.csi += 1
-                stats.per_anchor[payload.anchor] = (
-                    stats.per_anchor.get(payload.anchor, 0) + 1
-                )
-                yield CsiRecord(
-                    anchor=payload.anchor,
-                    seq=payload.seq,
-                    mac=payload.mac,
-                    rssi=payload.rssi,
-                    sig_mode=payload.sig_mode,
-                    channel=payload.channel,
-                    timestamp_us=payload.timestamp_us,
-                    t_host=t_host,
-                    host_ns=host_ns,
-                    amps_hw=payload.amps_hw,
-                    noise_floor=payload.noise_floor,
-                    bandwidth=payload.bandwidth,
-                    frame_control=payload.frame_control,
-                    frame_seq=payload.frame_seq,
-                    retry=payload.retry,
-                    first_word_invalid=payload.first_word_invalid,
-                )
-            else:
-                stats.stat += 1
-                yield StatRecord(
-                    anchor=payload.anchor,
-                    uptime_ms=payload.uptime_ms,
-                    pkts_seen=payload.pkts_seen,
-                    csi_cb_count=payload.csi_cb_count,
-                    queued=payload.queued,
-                    dropped=payload.dropped,
-                    free_heap=payload.free_heap,
-                    t_host=t_host,
-                )
+            rec = parse_logged_row(row, stats, legacy)
+            if rec is not None:
+                yield rec
 
 
 def expand_inputs(paths: Sequence[Union[str, Path]]) -> List[Path]:

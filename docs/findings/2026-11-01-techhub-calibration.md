@@ -54,7 +54,9 @@ A4 (0, 0)), Beacon `68:fe:71:fa:df:fc`, 62 Reference points on a 1.2 m lattice
    p46, p47, p54, p57. Four have none (p10, p20, p23, p57) and are in
    neither Radio map.
 6. **A1 faults** at p28, p47, p53, p57, p61 (field notes; the data cannot
-   tell a fault from range). Fix A1 before the next session.
+   tell a fault from range). Cause found 2026-11-05: A1 ran on a 100 W
+   (high-voltage) power bank, a one-off; the board itself is fine. Use
+   standard 5 V power banks for every Anchor; no repair or replacement needed.
 7. **Trimming makes no difference.** Median |change in RSSI| 0.05 dB, max
    2.16 dB; D-CFR and amplitude change about 0.007. A ~5 min recording per
    point (30 s settle + 4 min kept) is enough. Median recording was 6.4 min,
@@ -120,7 +122,8 @@ one per 6 m^2 here). Measured in one open room; walls would shorten the range.
 - ~~Trial area and Anchor count/positions~~: decided, option B above.
 - Where in TechHub to mark the 4.8 x 4.8 m area, and four stands at table
   height (77 cm) for the Anchors.
-- Fix or replace A1 (no extra Anchors needed with B).
+- ~~Fix or replace A1~~: not needed; the faults came from a high-voltage
+  power bank (finding 6). Power every Anchor from a standard 5 V bank.
 - Whether to report the current layout's Sniper result as a finding (it is
   one either way).
 
